@@ -1,0 +1,62 @@
+tinyasm 8086/8088 assembler
+by Oscar Toledo G. Oct/02/2019
+
+https://nanochess.org/
+https://github.com/nanochess/tinyasm
+
+It came to my attention that people wanted to test several
+of my boot sector games over real PC XT machines.
+
+Unfortunately, nasm doesn't run over 8086/8088 processors,
+and I couldn't find a compatible assembler, so what does a
+programmer when doesn't find the required tool? Start to
+code his own tool.
+
+Using the same command line syntax as nasm:
+
+  tinyasm -f bin rogue.asm -o rogue.img
+
+
+>> BUILDING THE ASSEMBLER >>
+
+You can build your own executable for tinyasm using the
+C compiler Desmet C, version 3.1h available graciously at:
+
+    http://www.desmet-c.com/
+
+It has many bugs and limitations, but it works for tinyasm
+purposes, and it's freely available.
+
+I provide an executable on the Git to save you some time.
+
+
+>> ATTENTION <<        
+
+Would you like to learn 8086/8088 programming? Then you
+must get my new book Programming Boot Sector Games including
+a 8086/8088 crash course!
+
+Now available from Lulu:
+
+  Soft-cover
+    http://www.lulu.com/shop/oscar-toledo-gutierrez/programming-boot-sector-games/paperback/product-24188564.html
+
+  Hard-cover
+    http://www.lulu.com/shop/oscar-toledo-gutierrez/programming-boot-sector-games/hardcover/product-24188530.html
+
+  eBook
+    https://nanochess.org/store.html
+
+These are some of the example programs documented profusely
+in the book:
+
+  * Guess the number.
+  * Tic-Tac-Toe game.
+  * Text graphics.
+  * Mandelbrot set.
+  * F-Bird game.
+  * Invaders game.
+  * Pillman game.
+  * Toledo Atomchess.
+  * bootBASIC language.
+
