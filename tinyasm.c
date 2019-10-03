@@ -39,6 +39,7 @@ int instruction_value2;
 char line[MAX_SIZE];
 char part[MAX_SIZE];
 char name[MAX_SIZE];
+char expr_name[MAX_SIZE];
 char undefined_name[MAX_SIZE];
 char global_label[MAX_SIZE];
 char *prev_p;
@@ -50,9 +51,12 @@ char generated[8];
 int errors;
 int warnings;
 int bytes;
+int change;
+int change_number;
 
 struct label {
-    struct label *prev;
+    struct label *left;
+    struct label *right;
     int value;
     char name[1];
 };
@@ -90,14 +94,40 @@ struct label *define_label(name, value)
     int value;
 {
     struct label *label;
+    struct label *explore;
+    int c;
     
     label = malloc(sizeof(struct label) + strlen(name));
-    if (label == NULL)
+    if (label == NULL) {
+        fprintf(stderr, "Out of memory for label\n");
+        exit(1);
         return NULL;
-    label->prev = label_list;
+    }
+    label->left = NULL;
+    label->right = NULL;
     label->value = value;
     strcpy(label->name, name);
-    label_list = label;
+    if (label_list == NULL) {
+        label_list = label;
+    } else {
+        explore = label_list;
+        while (1) {
+            c = strcmp(label->name, explore->name);
+            if (c < 0) {
+                if (explore->left == NULL) {
+                    explore->left = label;
+                    break;
+                }
+                explore = explore->left;
+            } else if (c > 0) {
+                if (explore->right == NULL) {
+                    explore->right = label;
+                    break;
+                }
+                explore = explore->right;
+            }
+        }
+    }
     return label;
 }
 
@@ -108,14 +138,32 @@ struct label *find_label(name)
     char *name;
 {
     struct label *explore;
+    int c;
     
     explore = label_list;
     while (explore != NULL) {
-        if (strcmp(name, explore->name) == 0)
+        c = strcmp(name, explore->name);
+        if (c == 0)
             return explore;
-        explore = explore->prev;
+        if (c < 0)
+            explore = explore->left;
+        else
+            explore = explore->right;
     }
     return NULL;
+}
+
+/*
+ ** Sort labels
+ */
+void sort_labels(node)
+    struct label *node;
+{
+    if (node->left != NULL)
+        sort_labels(node->left);
+    fprintf(listing, "%-20s %04x\n", node->name, node->value);
+    if (node->right != NULL)
+        sort_labels(node->right);
 }
 
 /*
@@ -658,24 +706,24 @@ char *match_expression_level6(p, value)
     }
     if (isalpha(*p) || *p == '_' || *p == '.') { /* Label */
         if (*p == '.') {
-            strcpy(name, global_label);
-            p2 = name;
+            strcpy(expr_name, global_label);
+            p2 = expr_name;
             while (*p2)
                 p2++;
         } else {
-            p2 = name;
+            p2 = expr_name;
         }
         while (isalpha(*p) || isdigit(*p) || *p == '_' || *p == '.')
             *p2++ = *p++;
         *p2 = '\0';
         for (c = 0; c < 16; c++)
-            if (strcmp(name, reg1[c]) == 0)
+            if (strcmp(expr_name, reg1[c]) == 0)
                 return NULL;
-        label = find_label(name);
+        label = find_label(expr_name);
         if (label == NULL) {
             *value = 0;
             undefined++;
-            strcpy(undefined_name, name);
+            strcpy(undefined_name, expr_name);
         } else {
             *value = label->value;
         }
@@ -1028,9 +1076,9 @@ void separate(void)
     p2 = part;
     while (*p && !isspace(*p) && *p != ';')
         *p2++ = *p++;
+    *p2 = '\0';
     while (*p && isspace(*p))
         p++;
-    *p2 = '\0';
 }
 
 /*
@@ -1223,15 +1271,48 @@ void do_assembly()
                 }
                 separate();
                 if (avoid_level == -1 || level < avoid_level) {
-                    if (strcmp(part, "EQU") != 0) {
-                        if (first_time == 1) {
+                    if (strcmp(part, "EQU") == 0) {
+                        p2 = match_expression(p, &instruction_value);
+                        if (p2 == NULL) {
+                            message(1, "bad expression");
+                        } else {
+                            if (assembler_step == 1) {
+                                if (find_label(name)) {
+                                    char m[256];
+                                    
+                                    sprintf(m, "Redefined label '%s'", name);
+                                    message(1, m);
+                                } else {
+                                    last_label = define_label(name, instruction_value);
+                                }
+                            } else {
+                                last_label = find_label(name);
+                                if (last_label == NULL) {
+                                    char m[256];
+                                    
+                                    sprintf(m, "Inconsistency, label '%s' not found", name);
+                                    message(1, m);
+                                } else {
+                                    if (last_label->value != instruction_value) {
 #ifdef DEBUG
-                            /*                        fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
+/*                                        fprintf(stderr, "Woops: label '%s' changed value from %04x to %04x\n", last_label->name, last_label->value, instruction_value);*/
 #endif
-                            first_time = 0;
-                            address = 0x0100;
-                            start_address = 0x0100;
+                                        change = 1;
+                                    }
+                                    last_label->value = instruction_value;
+                                }
+                            }
+                            check_end(p2);
                         }
+                        break;
+                    }
+                    if (first_time == 1) {
+#ifdef DEBUG
+                        /*                        fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
+#endif
+                        first_time = 0;
+                        address = 0x0100;
+                        start_address = 0x0100;
                     }
                     if (assembler_step == 1) {
                         if (find_label(name)) {
@@ -1250,8 +1331,15 @@ void do_assembly()
                             sprintf(m, "Inconsistency, label '%s' not found", name);
                             message(1, m);
                         } else {
+                            if (last_label->value != address) {
+#ifdef DEBUG
+/*                                fprintf(stderr, "Woops: label '%s' changed value from %04x to %04x\n", last_label->name, last_label->value, address);*/
+#endif
+                                change = 1;
+                            }
                             last_label->value = address;
                         }
+                        
                     }
                 }
             }
@@ -1359,23 +1447,6 @@ void do_assembly()
                 }
                 break;
             }
-            if (strcmp(part, "EQU") == 0) {
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
-                    message(1, "bad expression");
-                } else {
-                    if (last_label == NULL)
-                        message(1, "no label associated to EQU");
-                    else {
-#ifdef DEBUG
-                        /*fprintf(stderr, "Debug: label %s assigned %d\n", last_label->name, instruction_value);*/
-#endif
-                        last_label->value = instruction_value;
-                    }
-                    check_end(p2);
-                }
-                break;
-            }
             if (first_time == 1) {
 #ifdef DEBUG
                 /*fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
@@ -1439,6 +1510,7 @@ int main(argc, argv)
 {
     int c;
     int d;
+    char *p;
     
     /*
      ** If ran without arguments then show usage
@@ -1491,6 +1563,25 @@ int main(argc, argv)
                     listing_filename = argv[c];
                     c++;
                 }
+            } else if (d == 'd') {  /* Define label */
+                p = argv[c] + 2;
+                while (*p && *p != '=') {
+                    *p = toupper(*p);
+                    p++;
+                }
+                if (*p == '=') {
+                    *p++ = 0;
+                    undefined = 0;
+                    p = match_expression(p, &instruction_value);
+                    if (p == NULL) {
+                        fprintf(stderr, "Error: wrong label definition\n");
+                    } else if (undefined) {
+                        fprintf(stderr, "Error: non-constant label definition\n");
+                    } else {
+                        define_label(argv[c] + 2, instruction_value);
+                    }
+                }
+                c++;
             } else {
                 fprintf(stderr, "Error: unknown argument %s\n", argv[c]);
                 c++;
@@ -1524,35 +1615,43 @@ int main(argc, argv)
             fprintf(stderr, "No output filename provided\n");
             exit(1);
         }
-        if (listing_filename != NULL) {
-            listing = fopen(listing_filename, "w");
-            if (listing == NULL) {
-                fprintf(stderr, "Error: couldn't open '%s' as listing file\n", output_filename);
+        change_number = 0;
+        do {
+            change = 0;
+            if (listing_filename != NULL) {
+                listing = fopen(listing_filename, "w");
+                if (listing == NULL) {
+                    fprintf(stderr, "Error: couldn't open '%s' as listing file\n", output_filename);
+                    exit(1);
+                }
+            }
+            output = fopen(output_filename, "wb");
+            if (output == NULL) {
+                fprintf(stderr, "Error: couldn't open '%s' as output file\n", output_filename);
                 exit(1);
             }
-        }
-        output = fopen(output_filename, "wb");
-        if (output == NULL) {
-            fprintf(stderr, "Error: couldn't open '%s' as output file\n", output_filename);
-            exit(1);
-        }
-        assembler_step = 2;
-        do_assembly();
-        
-        if (listing != NULL) {
-            fprintf(listing, "\n%05d ERRORS FOUND\n", errors);
-            fprintf(listing, "%05d WARNINGS FOUND\n\n", warnings);
-            fprintf(listing, "%05d PROGRAM BYTES\n\n", bytes);
-            if (label_list != NULL) {
-                fprintf(listing, "%-20s VALUE/ADDRESS\n\n", "LABEL");
+            assembler_step = 2;
+            do_assembly();
+            
+            if (listing != NULL && change == 0) {
+                fprintf(listing, "\n%05d ERRORS FOUND\n", errors);
+                fprintf(listing, "%05d WARNINGS FOUND\n\n", warnings);
+                fprintf(listing, "%05d PROGRAM BYTES\n\n", bytes);
+                if (label_list != NULL) {
+                    fprintf(listing, "%-20s VALUE/ADDRESS\n\n", "LABEL");
+                    sort_labels(label_list);
+                }
             }
-            while (label_list != NULL) {
-                fprintf(listing, "%-20s %04x\n", label_list->name, label_list->value);
-                label_list = label_list->prev;
+            fclose(output);
+            if (listing_filename != NULL)
+                fclose(listing);
+            if (change) {
+                change_number++;
+                if (change_number == 5) {
+                    fprintf(stderr, "Aborted: Couldn't stabilize moving label\n");
+                    exit(1);
+                }
             }
-        }
-        fclose(output);
-        if (listing_filename != NULL)
-            fclose(listing);
+        } while (change) ;
     }
 }

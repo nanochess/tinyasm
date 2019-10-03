@@ -1,33 +1,114 @@
-tinyasm 8086/8088 assembler
+,--------.,--.                                          
+'--.  .--'`--',--,--, ,--. ,--.,--,--. ,---. ,--,--,--. 
+   |  |   ,--.|      \ \  '  /' ,-.  |(  .-' |        | 
+   |  |   |  ||  ||  |  \   ' \ '-'  |.-'  `)|  |  |  | 
+   `--'   `--'`--''--'.-'  /   `--`--'`----' `--`--`--' 
+                      `---'                             
+Tinyasm 8086/8088 assembler
 by Oscar Toledo G. Oct/02/2019
 
 https://nanochess.org/
 https://github.com/nanochess/tinyasm
 
-It came to my attention that people wanted to test several
-of my boot sector games over real PC XT machines.
+Tinyasm is a small assembler for 8086/8088 programs,
+and it can work over a real PC XT machine. It requires
+at least 128K of memory, maybe more.
+
+It came to my attention that several people wanted to
+assembly my boot sector games over real PC XT machines.
 
 Unfortunately, nasm doesn't run over 8086/8088 processors,
-and I couldn't find a compatible assembler, so what does a
-programmer when doesn't find the required tool? Start to
-code his own tool!
+and I couldn't find a compatible assembler!
+
+So what does a programmer when doesn't find the required
+tool? Start to code his own tool!
+
+It took me 3 days to get a working assembler compatible
+with the nasm syntax, plus all the directives I've used
+in my programs.
 
 Using the same command line syntax as nasm:
 
-  tinyasm -f bin rogue.asm -o rogue.img
+  tinyasm -f bin rogue.asm -o rogue.img -l rogue.lst
+
+
+>> DIFFERENCES BETWEEN TINYASM AND NASM >>
+
+The main difference is that Tinyasm won't insert long jumps
+for miscalculated conditional jumps.
+
+There is only support for 8086/8088 processors, and only
+are implemented the following directives:
+
+	%ifdef
+	%ifndef
+	%if
+	%else
+	%endif
+	times 
+	use16
+	cpu 8086
+	equ
+	db
+	dw
+
+
+>> DEBUG NOTES <<
+
+If you're building boot sector games with Tinyasm, then you
+need the following info to load the game inside the boot
+sector of a floppy disk.
+
+You need to have DEBUG in your disk (included with the DOS
+disks).
+
+Do the following (replace filename as desired):
+
+	DEBUG ROGUE.IMG
+		Extract now your working disk and insert a blank one !!!
+	A300
+	MOV AX,0301
+	MOV BX,0100
+	MOV CX,1
+	MOV DX,0
+	INT 13
+	JB 300
+	INT 20
+	RIP
+	300
+	G
+		Now the boot sector is replaced with the program!!!
 
 
 >> BUILDING THE ASSEMBLER >>
 
-You can build your own executable for tinyasm using the
+You can build your own executable for Tinyasm using the
 C compiler Desmet C, version 3.1h available graciously at:
 
     http://www.desmet-c.com/
 
-It has many bugs and limitations, but it works for tinyasm
-purposes, and it's freely available.
+The compiler has many bugs and limitations, but it works for
+tinyasm purposes, and it's freely available.
+
+You can find the "e.bat" file to assemble the compiler.
 
 I provide an executable on the Git to save you some time.
+
+There are test cases in the 'test' subdirectory that are
+runnable with the "test.bat" file.
+
+There is a test for the full instruction set of 8086/8088
+(the same listing that appears in my book Programming Boot
+Sector Games).
+
+The test cases come from my own programs:
+
+	https://github.com/nanochess/fbird
+	https://github.com/nanochess/invaders
+	https://github.com/nanochess/pillman
+	https://github.com/nanochess/bootBASIC
+	https://github.com/nanochess/bootOS
+	https://github.com/nanochess/bootRogue
 
 
 >> ATTENTION <<        

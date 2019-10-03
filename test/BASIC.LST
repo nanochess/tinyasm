@@ -1,0 +1,649 @@
+                        00001         ;
+                        00002         ; BOOTBASIC INTERPRETER IN 512 BYTES (BOOT SECTOR)
+                        00003         ;
+                        00004         ; BY OSCAR TOLEDO G.
+                        00005         ; HTTP://NANOCHESS.ORG/
+                        00006         ;
+                        00007         ; (C) COPYRIGHT 2019 OSCAR TOLEDO G.
+                        00008         ;
+                        00009         ; CREATION DATE: JUL/19/2019. 10PM TO 12AM.
+                        00010         ; REVISION DATE: JUL/20/2019. 10AM TO 2PM.
+                        00011         ;                             ADDED ASSIGNMENT STATEMENT. LIST NOW
+                        00012         ;                             WORKS. RUN/GOTO NOW WORKS. ADDED
+                        00013         ;                             SYSTEM AND NEW.
+                        00014         ; REVISION DATE: JUL/22/2019. BOOT IMAGE NOW INCLUDES 'system'
+                        00015         ;                             STATEMENT.
+                        00016         ;
+                        00017 
+                        00018         ;
+                        00019         ; USER'S MANUAL:
+
+                        00020         ;
+                        00021         ; LINE ENTRY IS DONE WITH KEYBOARD, FINISH THE LINE WITH ENTER.
+                        00022         ; ONLY 19 CHARACTERS PER LINE AS MAXIMUM.
+                        00023         ;
+                        00024         ; BACKSPACE CAN BE USED, DON't be fooled by the fact
+
+                        00025         ; THAT SCREEN ISN't deleted (it'S ALL RIGHT IN THE BUFFER).
+                        00026         ;
+                        00027         ; ALL STATEMENTS MUST BE IN LOWERCASE.
+                        00028         ;
+                        00029         ; LINE NUMBERS CAN BE 1 TO 999.
+                        00030         ;
+                        00031         ; 26 VARIABLES ARE AVAILABLE (A-Z)
+                        00032         ;
+                        00033         ; NUMBERS (0-65535) CAN BE ENTERED AND DISPLAY AS UNSIGNED.
+                        00034         ;
+                        00035         ; TO ENTER NEW PROGRAM LINES:
+                        00036         ;   10 PRINT "Hello, world!"
+                        00037         ;
+                        00038         ; TO ERASE PROGRAM LINES:
+                        00039         ;   10
+                        00040         ;
+                        00041         ; TO TEST STATEMENTS DIRECTLY (INTERACTIVE SYNTAX):
+                        00042         ;   PRINT "Hello, world!"
+                        00043         ;
+                        00044         ; TO ERASE THE CURRENT PROGRAM:
+                        00045         ;   NEW
+                        00046         ;
+                        00047         ; TO RUN THE CURRENT PROGRAM:
+                        00048         ;   RUN
+                        00049         ;
+                        00050         ; TO LIST THE CURRENT PROGRAM:
+                        00051         ;   LIST
+                        00052         ;
+                        00053         ; TO EXIT TO COMMAND-LINE:
+                        00054         ;   SYSTEM
+                        00055         ;
+                        00056         ; STATEMENTS:
+                        00057         ;   VAR=EXPR        ASSIGN EXPR VALUE TO VAR (A-Z)
+                        00058         ;
+                        00059         ;   PRINT EXPR      PRINT EXPRESSION VALUE, NEW LINE
+                        00060         ;   PRINT EXPR;     PRINT EXPRESSION VALUE, CONTINUE
+                        00061         ;   PRINT "hello"   PRINT STRING, NEW LINE
+                        00062         ;   PRINT "hello";  PRINT STRING, CONTINUE
+                        00063         ;
+                        00064         ;   INPUT VAR       INPUT VALUE INTO VARIABLE (A-Z)
+                        00065         ;
+                        00066         ;   GOTO EXPR       GOTO TO INDICATED LINE IN PROGRAM
+                        00067         ;
+                        00068         ;   IF EXPR1 GOTO EXPR2
+                        00069         ;               IF EXPR1 IS NON-ZERO THEN GO TO LINE,
+                        00070         ;               ELSE GO TO FOLLOWING LINE.
+                        00071         ;
+                        00072         ; EXAMPLES OF IF:
+                        00073         ;
+                        00074         ;   IF C-5 GOTO 20  IF C ISN't 5, go to line 20
+
+                        00075         ;
+                        00076         ; EXPRESSIONS:
+                        00077         ;
+                        00078         ;   THE OPERATORS +, -, / AND * ARE AVAILABLE WITH
+                        00079         ;   COMMON PRECEDENCE RULES AND SIGNED OPERATION.
+                        00080         ;
+                        00081         ;   YOU CAN ALSO USE PARENTHESES:
+                        00082         ;
+                        00083         ;      5+6*(10/2)
+                        00084         ;
+                        00085         ;   VARIABLES AND NUMBERS CAN BE USED IN EXPRESSIONS.
+                        00086         ;
+                        00087         ; SAMPLE PROGRAM (COUNTING 1 TO 10):
+                        00088         ;
+                        00089         ; 10 A=1
+                        00090         ; 20 PRINT A
+                        00091         ; 30 A=A+1
+                        00092         ; 40 IF A-11 GOTO 20
+                        00093         ;
+                        00094         ; SAMPLE PROGRAM (PASCAL's triangle, each number is the sum
+
+                        00095         ; OF THE TWO OVER IT):
+                        00096         ;
+                        00097         ; 10 INPUT N
+                        00098         ; 20 I=1
+                        00099         ; 30 C=1
+                        00100         ; 40 J=0
+                        00101         ; 50 T=N-I
+                        00102         ; 60 IF J-T GOTO 80
+                        00103         ; 70 GOTO 110
+                        00104         ; 80 PRINT " ";
+                        00105         ; 90 J=J+1
+                        00106         ; 100 GOTO 50
+                        00107         ; 110 K=1
+                        00108         ; 120 IF K-I-1 GOTO 140
+                        00109         ; 130 GOTO 190
+                        00110         ; 140 PRINT C;
+                        00111         ; 150 C=C*(I-K)/K
+                        00112         ; 160 PRINT " ";
+                        00113         ; 170 K=K+1
+                        00114         ; 180 GOTO 120
+                        00115         ; 190 PRINT
+                        00116         ; 200 I=I+1
+                        00117         ; 210 IF I-N-1 GOTO 30
+                        00118         ;
+                        00119 
+                        00120         CPU 8086
+                        00121 
+                        00122     %IFNDEF COM_FILE    ; IF NOT DEFINED CREATE A BOOT SECTOR
+                        00123 COM_FILE:       EQU 0
+                        00124     %ENDIF
+                        00125 
+                        00126     %IF COM_FILE
+                        00127         ORG 0X0100
+                        00128     %ELSE
+0006                    00129         ORG 0X7C00
+0006                    00130     %ENDIF
+0006                    00131 
+0006                    00132 VARS:       EQU 0X7E00  ; VARIABLES (MULTIPLE OF 256)
+0006                    00133 RUNNING:    EQU 0X7E7E  ; RUNNING STATUS
+0006                    00134 LINE:       EQU 0X7E80  ; LINE INPUT
+0006                    00135 PROGRAM:    EQU 0X7F00  ; PROGRAM ADDRESS
+0006                    00136 STACK:      EQU 0XFF00  ; STACK ADDRESS
+0006                    00137 MAX_LINE:   EQU 1000    ; FIRST UNAVAILABLE LINE NUMBER
+0006                    00138 MAX_LENGTH: EQU 20      ; MAXIMUM LENGTH OF LINE
+0006                    00139 MAX_SIZE:   EQU MAX_LINE*MAX_LENGTH ; MAX. PROGRAM SIZE
+0006                    00140 
+7C00                    00141 START:
+7C00                    00142     %IF COM_FILE
+7C00                    00143     %ELSE
+7C00  0E                00144         PUSH CS         ; FOR BOOT SECTOR
+7C01  0E                00145         PUSH CS         ; IT NEEDS TO SETUP
+7C02  0E                00146         PUSH CS         ; DS, ES AND SS.
+7C03  1F                00147         POP DS
+7C04  07                00148         POP ES
+7C05  17                00149         POP SS
+7C05                    00150     %ENDIF
+7C06  FC                00151         CLD             ; CLEAR DIRECTION FLAG
+7C07  BF007F            00152         MOV DI,PROGRAM  ; POINT TO PROGRAM
+7C0A  B00D              00153         MOV AL,0X0D     ; FILL WITH CR
+7C0C  B9204E            00154         MOV CX,MAX_SIZE ; MAX. PROGRAM SIZE
+7C0F  F3AA              00155         REP STOSB       ; INITIALIZE
+7C0F                    00156 
+7C0F                    00157         ;
+7C0F                    00158         ; MAIN LOOP
+7C0F                    00159         ;
+7C11                    00160 MAIN_LOOP:
+7C11  BC00FF            00161         MOV SP,STACK    ; REINITIALIZE STACK POINTER
+7C14  B8117C            00162         MOV AX,MAIN_LOOP
+7C17  50                00163         PUSH AX
+7C18  31C0              00164         XOR AX,AX       ; MARK AS INTERACTIVE
+7C1A  A37E7E            00165         MOV [RUNNING],AX
+7C1D  B03E              00166         MOV AL,'>'      ; SHOW PROMPT
+7C1F  E85001            00167         CALL INPUT_LINE ; ACCEPT LINE
+7C22  E80401            00168         CALL INPUT_NUMBER       ; GET NUMBER
+7C25  09C0              00169         OR AX,AX        ; NO NUMBER OR ZERO?
+7C27  740E              00170         JE STATEMENT    ; YES, JUMP
+7C29  E83D01            00171         CALL FIND_LINE  ; FIND THE LINE
+7C2C  97                00172         XCHG AX,DI      
+7C2C                    00173 ;       MOV CX,MAX_LENGTH       ; CX LOADED WITH THIS VALUE IN 'find_line'
+7C2D  F3A4              00174         REP MOVSB       ; COPY ENTERED LINE INTO PROGRAM
+7C2F  C3                00175         RET
+7C2F                    00176 
+7C2F                    00177         ;
+7C2F                    00178         ; HANDLE 'if' STATEMENT
+7C2F                    00179         ;
+7C30                    00180 IF_STATEMENT:
+7C30  E86D00            00181         CALL EXPR       ; PROCESS EXPRESSION
+7C33  09C0              00182         OR AX,AX        ; IS IT ZERO?
+7C35  7459              00183         JE F6           ; YES, RETURN (IGNORE IF)
+7C37                    00184 STATEMENT:
+7C37  E8D200            00185         CALL SPACES     ; AVOID SPACES
+7C3A  803C0D            00186         CMP BYTE [SI],0X0D  ; EMPTY LINE?
+7C3D  7451              00187         JE F6           ; YES, RETURN
+7C3F  BFC37D            00188         MOV DI,STATEMENTS   ; POINT TO STATEMENTS LIST
+7C42  8A05              00189 F5:     MOV AL,[DI]     ; READ LENGTH OF THE STRING
+7C44  47                00190         INC DI          ; AVOID LENGTH BYTE
+7C45  25FF00            00191         AND AX,0X00FF   ; IS IT ZERO?
+7C48  7413              00192         JE F4           ; YES, JUMP
+7C4A  91                00193         XCHG AX,CX
+7C4B  56                00194         PUSH SI         ; SAVE CURRENT POSITION
+7C4C  F3A6              00195 F16:    REP CMPSB       ; COMPARE STATEMENT
+7C4E  7506              00196         JNE F3          ; EQUAL? NO, JUMP
+7C50  58                00197         POP AX
+7C51  E8B800            00198         CALL SPACES     ; AVOID SPACES
+7C54  FF25              00199         JMP WORD [DI]   ; JUMP TO PROCESS STATEMENT
+7C54                    00200 
+7C56  01CF              00201 F3:     ADD DI,CX       ; ADVANCE THE LIST POINTER
+7C58  47                00202         INC DI          ; AVOID THE ADDRESS
+7C59  47                00203         INC DI
+7C5A  5E                00204         POP SI
+7C5B  EBE5              00205         JMP F5          ; COMPARE ANOTHER STATEMENT
+7C5B                    00206 
+7C5D  E8A500            00207 F4:     CALL GET_VARIABLE       ; TRY VARIABLE
+7C60  50                00208         PUSH AX         ; SAVE ADDRESS
+7C61  AC                00209         LODSB           ; READ A LINE LETTER
+7C62  3C3D              00210         CMP AL,'='      ; IS IT ASSIGNMENT '=' ?
+7C64  7434              00211         JE ASSIGNMENT   ; YES, JUMP TO ASSIGNMENT.
+7C64                    00212 
+7C64                    00213         ;
+7C64                    00214         ; AN ERROR HAPPENED
+7C64                    00215         ;
+7C66                    00216 ERROR:
+7C66  BE6E7C            00217         MOV SI,ERROR_MESSAGE
+7C69  E82601            00218         CALL PRINT_2    ; SHOW ERROR MESSAGE
+7C6C  EBA3              00219         JMP MAIN_LOOP   ; EXIT TO MAIN LOOP
+7C6C                    00220 
+7C6E                    00221 ERROR_MESSAGE:
+7C6E  4023210D          00222         DB "@#!",0X0D   ; GUESS THE WORDS :P
+7C6E                    00223 
+7C6E                    00224         ;
+7C6E                    00225         ; HANDLE 'list' STATEMENT
+7C6E                    00226         ;
+7C72                    00227 LIST_STATEMENT:
+7C72  31C0              00228         XOR AX,AX       ; START FROM LINE ZERO
+7C74  50                00229 F29:    PUSH AX
+7C75  E8F100            00230         CALL FIND_LINE  ; FIND PROGRAM LINE
+7C78  96                00231         XCHG AX,SI
+7C79  803C0D            00232         CMP BYTE [SI],0X0D ; EMPTY LINE?
+7C7C  740B              00233         JE F30          ; YES, JUMP
+7C7E  58                00234         POP AX
+7C7F  50                00235         PUSH AX
+7C80  E89100            00236         CALL OUTPUT_NUMBER ; SHOW LINE NUMBER
+7C83  AC                00237 F32:    LODSB           ; SHOW LINE CONTENTS
+7C84  E82701            00238         CALL OUTPUT
+7C87  75FA              00239         JNE F32         ; JUMP IF IT WASN't 0x0d (CR)
+
+7C89  58                00240 F30:    POP AX
+7C8A  40                00241         INC AX          ; GO TO NEXT LINE
+7C8B  3DE803            00242         CMP AX,MAX_LINE ; FINISHED?
+7C8E  75E4              00243         JNE F29         ; NO, CONTINUE
+7C90                    00244 F6:
+7C90  C3                00245         RET
+7C90                    00246 
+7C90                    00247         ;
+7C90                    00248         ; HANDLE 'input' STATEMENT
+7C90                    00249         ;
+7C91                    00250 INPUT_STATEMENT:
+7C91  E87100            00251         CALL GET_VARIABLE   ; GET VARIABLE ADDRESS
+7C94  50                00252         PUSH AX             ; SAVE IT
+7C95  B03F              00253         MOV AL,'?'          ; PROMPT
+7C97  E8D800            00254         CALL INPUT_LINE     ; WAIT FOR LINE
+7C97                    00255         ;
+7C97                    00256         ; SECOND PART OF THE ASSIGNMENT STATEMENT
+7C97                    00257         ;
+7C9A                    00258 ASSIGNMENT:
+7C9A  E80300            00259         CALL EXPR           ; PROCESS EXPRESSION
+7C9D  5F                00260         POP DI
+7C9E  AB                00261         STOSW               ; SAVE ONTO VARIABLE
+7C9F  C3                00262         RET
+7C9F                    00263 
+7C9F                    00264         ;
+7C9F                    00265         ; HANDLE AN EXPRESSION.
+7C9F                    00266         ; FIRST TIER: ADDITION & SUBTRACTION.
+7C9F                    00267         ;
+7CA0                    00268 EXPR:
+7CA0  E81C00            00269         CALL EXPR1          ; CALL SECOND TIER
+7CA3  803C2D            00270 F20:    CMP BYTE [SI],'-'   ; SUBTRACTION OPERATOR?
+7CA6  740E              00271         JE F19              ; YES, JUMP
+7CA8  803C2B            00272         CMP BYTE [SI],'+'   ; ADDITION OPERATOR?
+7CAB  75E3              00273         JNE F6              ; NO, RETURN
+7CAD  50                00274         PUSH AX
+7CAE  E80D00            00275         CALL EXPR1_2        ; CALL SECOND TIER
+7CB1  59                00276 F15:    POP CX
+7CB2  01C8              00277         ADD AX,CX           ; ADDITION
+7CB4  EBED              00278         JMP F20             ; FIND MORE OPERATORS
+7CB4                    00279 
+7CB6                    00280 F19:
+7CB6  50                00281         PUSH AX
+7CB7  E80400            00282         CALL EXPR1_2        ; CALL SECOND TIER
+7CBA  F7D8              00283         NEG AX              ; NEGATE IT (A - B CONVERTED TO A + -B)
+7CBC  EBF3              00284         JMP F15
+7CBC                    00285 
+7CBC                    00286         ;
+7CBC                    00287         ; HANDLE AN EXPRESSION.
+7CBC                    00288         ; SECOND TIER: DIVISION & MULTIPLICATION.
+7CBC                    00289         ;
+7CBE                    00290 EXPR1_2:
+7CBE  46                00291         INC SI              ; AVOID OPERATOR
+7CBF                    00292 EXPR1:
+7CBF  E81F00            00293         CALL EXPR2          ; CALL THIRD TIER
+7CC2  803C2F            00294 F21:    CMP BYTE [SI],'/'   ; DIVISION OPERATOR?
+7CC5  740E              00295         JE F23              ; YES, JUMP
+7CC7  803C2A            00296         CMP BYTE [SI],'*'   ; MULTIPLICATION OPERATOR?
+7CCA  75C4              00297         JNE F6              ; NO, RETURN
+7CCA                    00298 
+7CCC  50                00299         PUSH AX
+7CCD  E81000            00300         CALL EXPR2_2        ; CALL THIRD TIER
+7CD0  59                00301         POP CX
+7CD1  F7E9              00302         IMUL CX             ; MULTIPLICATION
+7CD3  EBED              00303         JMP F21             ; FIND MORE OPERATORS
+7CD3                    00304 
+7CD5                    00305 F23:
+7CD5  50                00306         PUSH AX
+7CD6  E80700            00307         CALL EXPR2_2        ; CALL THIRD TIER
+7CD9  59                00308         POP CX
+7CDA  91                00309         XCHG AX,CX
+7CDB  99                00310         CWD                 ; EXPAND AX TO DX:AX
+7CDC  F7F9              00311         IDIV CX             ; SIGNED DIVISION
+7CDE  EBE2              00312         JMP F21             ; FIND MORE OPERATORS
+7CDE                    00313 
+7CDE                    00314         ;
+7CDE                    00315         ; HANDLE AN EXPRESSION.
+7CDE                    00316         ; THIRD TIER: PARENTHESES, NUMBERS AND VARS.
+7CDE                    00317         ;
+7CE0                    00318 EXPR2_2:
+7CE0  46                00319         INC SI              ; AVOID OPERATOR
+7CE1                    00320 EXPR2:
+7CE1  E82800            00321         CALL SPACES         ; JUMP SPACES
+7CE4  AC                00322         LODSB               ; READ CHARACTER
+7CE5  3C28              00323         CMP AL,'('          ; OPEN PARENTHESIS?
+7CE7  750B              00324         JNE F24
+7CE9  E8B4FF            00325         CALL EXPR           ; PROCESS INNER EXPR.
+7CEC  803C29            00326         CMP BYTE [SI],')'   ; CLOSING PARENTHESIS?
+7CEF  7420              00327         JE SPACES_2         ; YES, AVOID SPACES
+7CF1  E972FF            00328         JMP ERROR           ; NO, JUMP TO ERROR
+7CF1                    00329 
+7CF4  3C40              00330 F24:    CMP AL,0X40         ; VARIABLE?
+7CF6  7306              00331         JNC F25             ; YES, JUMP
+7CF8  4E                00332         DEC SI              ; BACK ONE LETTER...
+7CF9  E82D00            00333         CALL INPUT_NUMBER   ; ...TO READ NUMBER
+7CFC  EB0E              00334         JMP SPACES          ; AVOID SPACES
+7CFC                    00335         
+7CFE  E80500            00336 F25:    CALL GET_VARIABLE_2 ; GET VARIABLE ADDRESS
+7D01  93                00337         XCHG AX,BX
+7D02  8B07              00338         MOV AX,[BX]         ; READ
+7D04  C3                00339         RET                 ; RETURN
+7D04                    00340 
+7D04                    00341         ;
+7D04                    00342         ; GET VARIABLE ADDRESS
+7D04                    00343         ;
+7D05                    00344 GET_VARIABLE:
+7D05  AC                00345         LODSB               ; READ SOURCE
+7D06                    00346 GET_VARIABLE_2:
+7D06  241F              00347         AND AL,0X1F         ; 0X61-0X7A -> 0X01-0X1A
+7D08  00C0              00348         ADD AL,AL           ; X 2 (EACH VARIABLE = WORD)
+7D0A  B47E              00349         MOV AH,VARS>>8      ; SETUP HIGH-BYTE OF ADDRESS
+7D0A                    00350         ;
+7D0A                    00351         ; AVOID SPACES
+7D0A                    00352         ;
+7D0C                    00353 SPACES:
+7D0C  803C20            00354         CMP BYTE [SI],' '   ; SPACE FOUND?
+7D0F  752D              00355         JNE F22             ; NO, RETURN
+7D0F                    00356         ;
+7D0F                    00357         ; AVOID SPACES AFTER CURRENT CHARACTER
+7D0F                    00358         ;
+7D11                    00359 SPACES_2:
+7D11  46                00360         INC SI              ; ADVANCE TO NEXT CHARACTER
+7D12  EBF8              00361         JMP SPACES
+7D12                    00362 
+7D12                    00363         ;
+7D12                    00364         ; OUTPUT UNSIGNED NUMBER 
+7D12                    00365         ; AX = VALUE
+7D12                    00366         ;
+7D14                    00367 OUTPUT_NUMBER:
+7D14                    00368 F26:
+7D14  31D2              00369         XOR DX,DX           ; DX:AX
+7D16  B90A00            00370         MOV CX,10           ; DIVISOR = 10
+7D19  F7F1              00371         DIV CX              ; DIVIDE
+7D1B  09C0              00372         OR AX,AX            ; NOTHING AT LEFT?
+7D1D  52                00373         PUSH DX
+7D1E  7403              00374         JE F8               ; NO, JUMP
+7D20  E8F1FF            00375         CALL F26            ; YES, OUTPUT LEFT SIDE
+7D23  58                00376 F8:     POP AX
+7D24  0430              00377         ADD AL,'0'          ; OUTPUT REMAINDER AS...
+7D26  E98500            00378         JMP OUTPUT          ; ...ASCII DIGIT
+7D26                    00379 
+7D26                    00380         ;
+7D26                    00381         ; READ NUMBER IN INPUT
+7D26                    00382         ; AX = RESULT
+7D26                    00383         ;
+7D29                    00384 INPUT_NUMBER:
+7D29  31DB              00385         XOR BX,BX           ; BX = 0
+7D2B  AC                00386 F11:    LODSB               ; READ SOURCE
+7D2C  2C30              00387         SUB AL,'0'
+7D2E  3C0A              00388         CMP AL,10           ; DIGIT VALID?
+7D30  98                00389         CBW
+7D31  93                00390         XCHG AX,BX
+7D32  7309              00391         JNC F12             ; NO, JUMP
+7D34  B90A00            00392         MOV CX,10           ; MULTIPLY BY 10
+7D37  F7E1              00393         MUL CX
+7D39  01C3              00394         ADD BX,AX           ; ADD NEW DIGIT
+7D3B  EBEE              00395         JMP F11             ; CONTINUE
+7D3B                    00396 
+7D3D  4E                00397 F12:    DEC SI              ; SI POINTS TO FIRST NON-DIGIT
+7D3E                    00398 F22:
+7D3E  C3                00399         RET
+7D3E                    00400 
+7D3E                    00401         ;
+7D3E                    00402         ; HANDLE 'system' STATEMENT
+7D3E                    00403         ;
+7D3F                    00404 SYSTEM_STATEMENT:
+7D3F  CD20              00405         INT 0X20
+7D3F                    00406 
+7D3F                    00407         ;
+7D3F                    00408         ; HANDLE 'goto' STATEMENT
+7D3F                    00409         ;
+7D41                    00410 GOTO_STATEMENT:
+7D41  E85CFF            00411         CALL EXPR           ; HANDLE EXPRESSION
+7D44  B9                00412         DB 0XB9             ; MOV CX TO JUMP OVER XOR AX,AX
+7D44                    00413 
+7D44                    00414         ;
+7D44                    00415         ; HANDLE 'run' STATEMENT
+7D44                    00416         ; (EQUIVALENT TO 'goto 0')
+7D44                    00417         ;
+7D45                    00418 RUN_STATEMENT:
+7D45  31C0              00419         XOR AX,AX           
+7D47                    00420 F10:
+7D47  E81F00            00421         CALL FIND_LINE      ; FIND LINE IN PROGRAM
+7D4A  833E7E7E00        00422 F27:    CMP WORD [RUNNING],0 ; ALREADY RUNNING?
+7D4F  7404              00423         JE F31
+7D51  A37E7E            00424         MOV [RUNNING],AX    ; YES, TARGET IS NEW LINE
+7D54  C3                00425         RET
+7D55                    00426 F31:
+7D55  50                00427         PUSH AX
+7D56  5E                00428         POP SI
+7D57  051400            00429         ADD AX,MAX_LENGTH   ; POINT TO NEXT LINE
+7D5A  A37E7E            00430         MOV [RUNNING],AX    ; SAVE FOR NEXT TIME
+7D5D  E8D7FE            00431         CALL STATEMENT      ; PROCESS CURRENT STATEMENT
+7D60  A17E7E            00432         MOV AX,[RUNNING]
+7D63  3D20CD            00433         CMP AX,PROGRAM+MAX_SIZE ; REACHED THE END?
+7D66  75ED              00434         JNE F31             ; NO, CONTINUE
+7D68  C3                00435         RET                 ; YES, RETURN
+7D68                    00436 
+7D68                    00437         ;
+7D68                    00438         ; FIND LINE IN PROGRAM
+7D68                    00439         ; ENTRY:
+7D68                    00440         ;   AX = LINE NUMBER
+7D68                    00441         ; RESULT:
+7D68                    00442         ;   AX = POINTER TO PROGRAM
+7D69                    00443 FIND_LINE:
+7D69  B91400            00444         MOV CX,MAX_LENGTH
+7D6C  F7E1              00445         MUL CX
+7D6E  05007F            00446         ADD AX,PROGRAM
+7D71  C3                00447         RET
+7D71                    00448 
+7D71                    00449         ;
+7D71                    00450         ; INPUT LINE FROM KEYBOARD
+7D71                    00451         ; ENTRY:
+7D71                    00452         ;   AL = PROMPT CHARACTER
+7D71                    00453         ; RESULT:
+7D71                    00454         ;   BUFFER 'line' CONTAINS LINE, FINISHED WITH CR
+7D71                    00455         ;   SI POINTS TO 'line'.
+7D71                    00456         ;
+7D72                    00457 INPUT_LINE:
+7D72  E83900            00458         CALL OUTPUT
+7D75  BE807E            00459         MOV SI,LINE
+7D78  56                00460         PUSH SI
+7D79  5F                00461         POP DI          ; TARGET FOR WRITING LINE
+7D7A  E82D00            00462 F1:     CALL INPUT_KEY  ; READ KEYBOARD
+7D7D  AA                00463         STOSB           ; SAVE KEY IN BUFFER
+7D7E  3C08              00464         CMP AL,0X08     ; BACKSPACE?
+7D80  7502              00465         JNE F2          ; NO, JUMP
+7D82  4F                00466         DEC DI          ; GET BACK ONE CHARACTER
+7D83  4F                00467         DEC DI
+7D84  3C0D              00468 F2:     CMP AL,0X0D     ; CR PRESSED?
+7D86  75F2              00469         JNE F1          ; NO, WAIT ANOTHER KEY
+7D88  C3                00470         RET             ; YES, RETURN
+7D88                    00471 
+7D88                    00472         ;
+7D88                    00473         ; HANDLE "print" STATEMENT
+7D88                    00474         ;
+7D89                    00475 PRINT_STATEMENT:
+7D89  AC                00476         LODSB           ; READ SOURCE
+7D8A  3C0D              00477         CMP AL,0X0D     ; END OF LINE?
+7D8C  7424              00478         JE NEW_LINE     ; YES, GENERATE NEW LINE AND RETURN
+7D8E  3C22              00479         CMP AL,'"'      ; DOUBLE QUOTES?
+7D90  750B              00480         JNE F7          ; NO, JUMP
+7D92                    00481 PRINT_2:
+7D92                    00482 F9:
+7D92  AC                00483         LODSB           ; READ STRING CONTENTS
+7D93  3C22              00484         CMP AL,'"'      ; DOUBLE QUOTES?
+7D95  740D              00485         JE F18          ; YES, JUMP
+7D97  E81400            00486         CALL OUTPUT     ; OUTPUT CHARACTER
+7D9A  75F6              00487         JNE F9          ; JUMP IF NOT FINISHED WITH 0X0D (CR)
+7D9C  C3                00488         RET             ; RETURN
+7D9C                    00489 
+7D9D  4E                00490 F7:     DEC SI
+7D9E  E8FFFE            00491         CALL EXPR       ; HANDLE EXPRESSION
+7DA1  E870FF            00492         CALL OUTPUT_NUMBER      ; OUTPUT RESULT
+7DA4  AC                00493 F18:    LODSB           ; READ NEXT CHARACTER
+7DA5  3C3B              00494         CMP AL,';'      ; IS IT SEMICOLON?
+7DA7  7509              00495         JNE NEW_LINE    ; NO, JUMP TO GENERATE NEW LINE
+7DA9  C3                00496         RET             ; YES, RETURN
+7DA9                    00497 
+7DA9                    00498         ;
+7DA9                    00499         ; READ A KEY INTO AL
+7DA9                    00500         ; ALSO OUTPUTS IT TO SCREEN
+7DA9                    00501         ;
+7DAA                    00502 INPUT_KEY:
+7DAA  B400              00503         MOV AH,0X00
+7DAC  CD16              00504         INT 0X16
+7DAC                    00505         ;
+7DAC                    00506         ; SCREEN OUTPUT OF CHARACTER CONTAINED IN AL
+7DAC                    00507         ; EXPANDS 0X0D (CR) INTO 0X0A 0X0D (LF CR)
+7DAC                    00508         ;
+7DAE                    00509 OUTPUT:
+7DAE  3C0D              00510         CMP AL,0X0D
+7DB0  7507              00511         JNE F17
+7DB0                    00512         ;
+7DB0                    00513         ; GO TO NEXT LINE (GENERATES LF+CR)
+7DB0                    00514         ;
+7DB2                    00515 NEW_LINE:
+7DB2  B00A              00516         MOV AL,0X0A
+7DB4  E80200            00517         CALL F17
+7DB7  B00D              00518         MOV AL,0X0D
+7DB9                    00519 F17:
+7DB9  B40E              00520         MOV AH,0X0E
+7DBB  BB0700            00521         MOV BX,0X0007
+7DBE  CD10              00522         INT 0X10
+7DC0  3C0D              00523         CMP AL,0X0D
+7DC2  C3                00524         RET
+7DC2                    00525 
+7DC2                    00526         ;
+7DC2                    00527         ; LIST OF STATEMENTS OF BOOTBASIC
+7DC2                    00528         ; FIRST ONE BYTE WITH LENGTH OF STRING
+7DC2                    00529         ; THEN STRING WITH STATEMENT
+7DC2                    00530         ; THEN A WORD WITH THE ADDRESS OF THE CODE
+7DC2                    00531         ;
+7DC3                    00532 STATEMENTS:
+7DC3  036E6577          00533         DB 3,"new"
+7DC7  007C              00534         DW START
+7DC7                    00535 
+7DC9  046C697374        00536         DB 4,"list"
+7DCE  727C              00537         DW LIST_STATEMENT
+7DCE                    00538 
+7DD0  0372756E          00539         DB 3,"run"
+7DD4  457D              00540         DW RUN_STATEMENT
+7DD4                    00541 
+7DD6  057072696E74      00542         DB 5,"print"
+7DDC  897D              00543         DW PRINT_STATEMENT
+7DDC                    00544 
+7DDE  05696E707574      00545         DB 5,"input"
+7DE4  917C              00546         DW INPUT_STATEMENT
+7DE4                    00547 
+7DE6  026966            00548         DB 2,"if"
+7DE9  307C              00549         DW IF_STATEMENT
+7DE9                    00550 
+7DEB  04676F746F        00551         DB 4,"goto"
+7DF0  417D              00552         DW GOTO_STATEMENT
+7DF0                    00553 
+7DF2  0673797374656D    00554         DB 6,"system"
+7DF9  3F7D              00555         DW SYSTEM_STATEMENT
+7DF9                    00556 
+7DFB  00                00557         DB 0
+7DFB                    00558 
+7DFB                    00559         ;
+7DFB                    00560         ; BOOT SECTOR FILLER
+7DFB                    00561         ;
+7DFB                    00562     %IF COM_FILE
+7DFB                    00563     %ELSE
+7DFC  4F4F              00564         TIMES 510-($-$$) DB 0X4F
+7DFE  55AA              00565         DB 0X55,0XAA            ; MAKE IT A BOOTABLE SECTOR
+7DFE                    00566     %ENDIF
+7DFE                    00567 
+
+00000 ERRORS FOUND
+00000 WARNINGS FOUND
+
+01024 PROGRAM BYTES
+
+LABEL                VALUE/ADDRESS
+
+ASSIGNMENT           7c9a
+COM_FILE             0000
+ERROR                7c66
+ERROR_MESSAGE        7c6e
+EXPR                 7ca0
+EXPR1                7cbf
+EXPR1_2              7cbe
+EXPR2                7ce1
+EXPR2_2              7ce0
+F1                   7d7a
+F10                  7d47
+F11                  7d2b
+F12                  7d3d
+F15                  7cb1
+F16                  7c4c
+F17                  7db9
+F18                  7da4
+F19                  7cb6
+F2                   7d84
+F20                  7ca3
+F21                  7cc2
+F22                  7d3e
+F23                  7cd5
+F24                  7cf4
+F25                  7cfe
+F26                  7d14
+F27                  7d4a
+F29                  7c74
+F3                   7c56
+F30                  7c89
+F31                  7d55
+F32                  7c83
+F4                   7c5d
+F5                   7c42
+F6                   7c90
+F7                   7d9d
+F8                   7d23
+F9                   7d92
+FIND_LINE            7d69
+GET_VARIABLE         7d05
+GET_VARIABLE_2       7d06
+GOTO_STATEMENT       7d41
+IF_STATEMENT         7c30
+INPUT_KEY            7daa
+INPUT_LINE           7d72
+INPUT_NUMBER         7d29
+INPUT_STATEMENT      7c91
+LINE                 7e80
+LIST_STATEMENT       7c72
+MAIN_LOOP            7c11
+MAX_LENGTH           0014
+MAX_LINE             03e8
+MAX_SIZE             4e20
+NEW_LINE             7db2
+OUTPUT               7dae
+OUTPUT_NUMBER        7d14
+PRINT_2              7d92
+PRINT_STATEMENT      7d89
+PROGRAM              7f00
+RUNNING              7e7e
+RUN_STATEMENT        7d45
+SPACES               7d0c
+SPACES_2             7d11
+STACK                ff00
+START                7c00
+STATEMENT            7c37
+STATEMENTS           7dc3
+SYSTEM_STATEMENT     7d3f
+VARS                 7e00

@@ -58,8 +58,8 @@
                         00058 YENDOR_LEVEL:   EQU 26          ; LEVEL OF APPEARANCE FOR AMULET OF YENDOR
                         00059 
                         00060     %IFDEF COM_FILE
-                        00061         ORG 0X0100
-                        00062     %ELSE
+0006                    00061         ORG 0X0100
+0006                    00062     %ELSE
 0006                    00063         ORG 0X7C00
 0006                    00064     %ENDIF
 0006                    00065 
@@ -76,496 +76,508 @@
 0006                    00076         ;
 0006                    00077         ; START OF THE ADVENTURE!
 0006                    00078         ;
-7C00                    00079 START:
-7C00  E540              00080         IN AX,0X40      ; READ TIMER COUNTER
-7C02  50                00081         PUSH AX         ; SETUP PSEUDORANDOM NUMBER GENERATOR
-7C02                    00082 
-7C03  B81000            00083         MOV AX,16
-7C06  50                00084         PUSH AX         ; HP
-7C07  B001              00085         MOV AL,1
-7C09  50                00086         PUSH AX         ; YENDOR (LOW BYTE) + LEVEL (HIGH BYTE)
-7C0A  50                00087         PUSH AX         ; WEAPON (LOW BYTE) + ARMOR (HIGH BYTE)
-7C0B  40                00088         INC AX          ; AX = 0X0002 (IT WAS 0X0001)
-7C0C  CD10              00089         INT 0X10
-7C0E  B800B8            00090         MOV AX,0XB800   ; TEXT VIDEO SEGMENT
-7C11  8ED8              00091         MOV DS,AX
-7C13  8EC0              00092         MOV ES,AX
-7C13                    00093 
-7C15  89E5              00094         MOV BP,SP
-7C17                    00095 GENERATE_DUNGEON:
-7C17                    00096         ;
-7C17                    00097         ; ADVANCE TO NEXT LEVEL (CAN GO DEEPER OR HIGHER)
-7C17                    00098         ;
-7C17  8A5E02            00099         MOV BL,[BP+YENDOR]
-7C1A  005E03            00100         ADD [BP+LEVEL],BL
-7C1A                    00101     %IFDEF COM_FILE
-7C1A                    00102         JE QUIT         ; STOP IF LEVEL ZERO IS REACHED
-7C1A                    00103     %ELSE
-7C1D  74FE              00104         JE $            ; STOP IF LEVEL ZERO IS REACHED
-7C1D                    00105     %ENDIF
-7C1D                    00106 
-7C1D                    00107         ;
-7C1D                    00108         ; SELECT A MAZE FOR THE DUNGEON
-7C1D                    00109         ;
-7C1D                    00110         ; THERE ARE MANY COMBINATIONS OF VALUES THAT GENERATE AT LEAST
-7C1D                    00111         ; 16 MAZES IN ORDER TO AVOID A TABLE.
-7C1D                    00112         ;
-7C1F  8B4606            00113         MOV AX,[BP+RND]        
-7C22  258241            00114         AND AX,0X4182
-7C25  0D6D1A            00115         OR AX,0X1A6D
-7C28  96                00116         XCHG AX,SI
-7C28                    00117 
-7C28                    00118         ;
-7C28                    00119         ; CLEAN THE SCREEN
-7C28                    00120         ;
-7C29  31C0              00121         XOR AX,AX
-7C2B  31FF              00122         XOR DI,DI
-7C2D  B508              00123         MOV CH,0X08
-7C2F  F3AB              00124         REP STOSW
-7C2F                    00125 
-7C2F                    00126         ;
-7C2F                    00127         ; DRAW THE NINE ROOMS
-7C2F                    00128         ;
-7C31  B85601            00129         MOV AX,(BOX_HEIGHT/2-2)*ROW_WIDTH+(BOX_WIDTH/2-2)*2
-7C34                    00130 .7:
-7C34  50                00131         PUSH AX
-7C35  50                00132         PUSH AX
-7C36  05A400            00133         ADD AX,ROW_WIDTH+4      ; GET THE CENTER OF ROOM
-7C39  97                00134         XCHG AX,DI                                              
-7C3A  D1EE              00135         SHR SI,1                ; OBTAIN BIT OF RIGHT CONNECTION
-7C3C  B8B100            00136         MOV AX,0X0000+GR_TUNNEL
-7C3F  B91A00            00137         MOV CX,BOX_WIDTH
-7C42  7304              00138         JNC .3
-7C44  57                00139         PUSH DI
-7C45  F3AB              00140         REP STOSW               ; HORIZONTAL TUNNEL
-7C47  5F                00141         POP DI
-7C48                    00142 .3:
-7C48  D1EE              00143         SHR SI,1                ; OBTAIN BIT OF DOWN CONNECTION
-7C4A  7309              00144         JNC .5
-7C4C  B108              00145         MOV CL,BOX_HEIGHT
-7C4E                    00146 .4:
-7C4E  AA                00147         STOSB                   ; VERTICAL TUNNEL
-7C4F  81C79F00          00148         ADD DI,ROW_WIDTH-1
-7C53  E2F9              00149         LOOP .4
-7C55                    00150 .5:     
-7C55  B715              00151         MOV BH,BOX_MAX_WIDTH-2  
-7C57  E88A01            00152         CALL RANDOM             ; GET A RANDOM WIDTH FOR ROOM.
-7C5A  91                00153         XCHG AX,CX
-7C5B  B704              00154         MOV BH,BOX_MAX_HEIGHT-2
-7C5D  E88401            00155         CALL RANDOM             ; GET A RANDOM HEIGHT FOR ROOM.
-7C60  88C5              00156         MOV CH,AL
-7C62  24FE              00157         AND AL,0XFE             ; IT NEEDS A/2*2 SO THIS DOES IT.
-7C64  B450              00158         MOV AH,ROW_WIDTH/2
-7C66  F6E4              00159         MUL AH
-7C68  01C8              00160         ADD AX,CX               ; NOW IT HAS A CENTERING OFFSET
-7C6A  28EC              00161         SUB AH,CH               ; BETTER THAN "mov bx,cx mov bh,0"
-7C6C  24FE              00162         AND AL,0XFE
-7C6E  5F                00163         POP DI
-7C6F  29C7              00164         SUB DI,AX               ; SUBTRACT FROM ROOM CENTER
-7C71  B0C9              00165         MOV AL,GR_TOP_LEFT      ; DRAW TOP ROW OF ROOM
-7C73  BBCDBB            00166         MOV BX,GR_TOP_RIGHT*256+GR_HORIZ
-7C76  E81801            00167         CALL FILL
-7C79                    00168 .9:
-7C79  B0BA              00169         MOV AL,GR_VERT          ; DRAW INTERMEDIATE ROW OF ROOM
-7C7B  BBFABA            00170         MOV BX,GR_VERT*256+GR_FLOOR     
-7C7E  E81001            00171         CALL FILL
-7C81  FECD              00172         DEC CH
-7C83  79F4              00173         JNS .9
-7C85  B0C8              00174         MOV AL,GR_BOT_LEFT      ; DRAW BOTTOM ROW OF ROOM
-7C87  BBCDBC            00175         MOV BX,GR_BOT_RIGHT*256+GR_HORIZ
-7C8A  E80401            00176         CALL FILL
-7C8D  58                00177         POP AX
-7C8E  053400            00178         ADD AX,BOX_WIDTH*2
-7C91  3CF2              00179         CMP AL,0XF2             ; FINISHED DRAWING THREE ROOMS?
-7C93  7503              00180         JNE .6                  ; NO, JUMP
-7C93                    00181                                 ; YES, GO TO FOLLOWING ROW
-7C95  056404            00182         ADD AX,ROW_WIDTH*BOX_HEIGHT-BOX_WIDTH*3*2
-7C98                    00183 .6:
-7C98  3D000F            00184         CMP AX,ROW_WIDTH*BOX_HEIGHT*3
-7C9B  7297              00185         JB .7
-7C9B                    00186 
-7C9B                    00187         ;
-7C9B                    00188         ; PUT THE LADDER AT A RANDOM CORNER ROOM
-7C9B                    00189         ;
-7C9D  D16606            00190         SHL WORD [BP+RND],1
-7CA0  B8F801            00191         MOV AX,3*ROW_WIDTH+12*2       
-7CA3  BBF80B            00192         MOV BX,19*ROW_WIDTH+12*2        
-7CA6  7301              00193         JNC .2
-7CA8  93                00194         XCHG AX,BX
-7CA9  7903              00195 .2:     JNS .8
-7CAB  056800            00196         ADD AX,BOX_WIDTH*2*2
-7CAE                    00197 .8:
-7CAE  97                00198         XCHG AX,DI
-7CAE                    00199 
-7CAF  C605F0            00200         MOV BYTE [DI],GR_LADDER
-7CAF                    00201 
-7CAF                    00202         ;
-7CAF                    00203         ; IF A DEEP LEVEL HAS BEEN REACHED THEN PUT THE AMULET OF YENDOR
-7CAF                    00204         ;
-7CB2  807E031A          00205         CMP BYTE [BP+LEVEL],YENDOR_LEVEL
-7CB6  7203              00206         JB .1
-7CB8  C6070C            00207         MOV BYTE [BX],GR_YENDOR
-7CBB                    00208 .1:
-7CBB                    00209         ;
-7CBB                    00210         ; SETUP HERO START
-7CBB                    00211         ;
-7CBB  BF2C07            00212         MOV DI,11*ROW_WIDTH+38*2
-7CBB                    00213         ;
-7CBB                    00214         ; MAIN GAME LOOP
-7CBB                    00215         ;
-7CBE                    00216 GAME_LOOP:
-7CBE  B8BE7C            00217         MOV AX,GAME_LOOP        ; FORCE TO REPEAT, THE WHOLE LOOP...
-7CC1  50                00218         PUSH AX                 ; ...ENDS WITH RET.
-7CC1                    00219 
-7CC1                    00220         ;
-7CC1                    00221         ; CIRCLE OF LIGHT AROUND THE PLAYER (3X3)
-7CC1                    00222         ;
-7CC2  BB0500            00223         MOV BX,0X0005                   ; BX VALUES
-7CC5  4B                00224 .1:     DEC BX
-7CC6  4B                00225         DEC BX                          ; -1 1 3 -0X00A0
-7CC7  B006              00226         MOV AL,LIGHT_COLOR     
-7CC9  888160FF          00227         MOV [BX+DI-ROW_WIDTH],AL        ; -1(1)3 
-7CCD  8801              00228         MOV [BX+DI],AL                      
-7CCF  8881A000          00229         MOV [BX+DI+ROW_WIDTH],AL        ; -1 1 3 +0X00A0
-7CD3  79F0              00230         JNS .1
-7CD3                    00231 
-7CD3                    00232         ;
-7CD3                    00233         ; SHOW OUR HERO
-7CD3                    00234         ;
-7CD5  FF35              00235         PUSH WORD [DI]          ; SAVE CHARACTER UNDER 
-7CD7  C705010E          00236         MOV WORD [DI],HERO_COLOR*256+GR_HERO
-7CDB  31C0              00237         XOR AX,AX
-7CDD  E86800            00238         CALL ADD_HP             ; UPDATE STATS
-7CDD                    00239     ;   MOV AH,0X00             ; COMES HERE WITH AH = 0
-7CE0  CD16              00240         INT 0X16                ; READ KEYBOARD
-7CE2  8F05              00241         POP WORD [DI]           ; RESTORE CHARACTER UNDER 
-7CE2                    00242 
-7CE4  88E0              00243         MOV AL,AH
-7CE4                    00244     %IFDEF COM_FILE
-7CE4                    00245         CMP AL,0X01
-7CE4                    00246         JE QUIT                 ; EXIT IF ESC KEY IS PRESSED
-7CE4                    00247     %ENDIF
-7CE4                    00248 
-7CE6  2C4C              00249         SUB AL,0X4C
-7CE8  B402              00250         MOV AH,0X02             ; LEFT/RIGHT MULTIPLIES BY 2
-7CEA  3CFF              00251         CMP AL,0XFF             ; GOING LEFT (SCANCODE 0X4B)
-7CEC  740E              00252         JE .2
-7CEE  3C01              00253         CMP AL,0X01             ; GOING RIGHT (SCANCODE 0X4D)
-7CF0  740A              00254         JE .2
-7CF2  3CFC              00255         CMP AL,0XFC             ; GOING UP (SCANCODE 0X48)
-7CF4  7404              00256         JE .3
-7CF6  3C04              00257         CMP AL,0X04             ; GOING DOWN (SCANCODE 0X50)
-7CF8  7538              00258         JNE MOVE_CANCEL
-7CFA                    00259 .3:
-7CFA  B428              00260         MOV AH,0X28             ; UP/DOWN MULTIPLIES BY 40
-7CFC                    00261 .2:
-7CFC  F6EC              00262         IMUL AH                 ; SIGNED MULTIPLICATION
-7CFC                    00263 
-7CFE  93                00264         XCHG AX,BX              ; BX = DISPLACEMENT OFFSET
-7CFF  8A01              00265         MOV AL,[DI+BX]          ; READ THE TARGET CONTENTS
-7D01  3CF0              00266         CMP AL,GR_LADDER        ; GR_LADDER?
-7D03  742E              00267         JE LADDER_FOUND         ; YES, JUMP TO NEXT LEVEL
-7D05  7729              00268         JA MOVE_OVER            ; > IT MUST BE GR_FLOOR
-7D07  3CCE              00269         CMP AL,GR_DOOR          ; GR_DOOR?
-7D09  7425              00270         JE MOVE_OVER            ; YES, CAN MOVE
-7D0B  3CB1              00271         CMP AL,GR_TUNNEL        ; GR_TUNNEL?
-7D0D  7421              00272         JE MOVE_OVER            ; YES, CAN MOVE
-7D0F  7721              00273         JA MOVE_CANCEL          ; > IT MUST BE BORDER, CANCEL MOVEMENT
-7D11  3C04              00274         CMP AL,GR_TRAP          ; GR_TRAP?
-7D13  721D              00275         JB MOVE_CANCEL          ; < IT MUST BE BLANK, CANCEL MOVEMENT
-7D15  8D39              00276         LEA DI,[DI+BX]          ; DO MOVE.
-7D17  742A              00277         JE TRAP_FOUND           ; = YES, WENT OVER TRAP
-7D19  3C18              00278         CMP AL,GR_WEAPON        ; GR_WEAPON?
-7D1B  774B              00279         JA BATTLE               ; > IT'S A MONSTER, GO TO BATTLE
-7D1D  C605FA            00280         MOV BYTE [DI],GR_FLOOR  ; DELETE ITEM FROM FLOOR
-7D20  7418              00281         JE WEAPON_FOUND         ; = WEAPON FOUND
-7D22  3C08              00282         CMP AL,GR_ARMOR         ; GR_ARMOR?
-7D24  7410              00283         JE ARMOR_FOUND          ; YES, INCREASE ARMOR
-7D26  7216              00284         JB FOOD_FOUND           ; < IT'S GR_FOOD, INCREASE HP
-7D28  3C0F              00285         CMP AL,GR_GOLD          ; GR_GOLD?
-7D2A  7406              00286         JE MOVE_CANCEL          ; YES, SIMPLY TAKE IT.
-7D2A                    00287         ; AT THIS POINT 'AL' ONLY CAN BE GR_YENDOR
-7D2A                    00288         ; AMULET OF YENDOR FOUND!
-7D2C  F65E02            00289         NEG BYTE [BP+YENDOR]    ; NOW PLAYER GOES UPWARDS OVER LADDERS.
-7D2F  C3                00290         RET
-7D30                    00291 MOVE_OVER:        
-7D30  8D39              00292         LEA DI,[BX+DI]          ; DO MOVE.
-7D32                    00293 MOVE_CANCEL:
-7D32  C3                00294         RET                     ; RETURN TO MAIN LOOP.
-7D32                    00295 
-7D32                    00296     %IFDEF COM_FILE
-7D32                    00297 QUIT:
-7D32                    00298         INT 0X20
-7D32                    00299     %ENDIF
-7D32                    00300 
-7D32                    00301         ;
-7D32                    00302         ;     I--
-7D32                    00303         ;   I--
-7D32                    00304         ; I--
-7D32                    00305         ;
-7D33                    00306 LADDER_FOUND:
-7D33  E9E1FE            00307         JMP GENERATE_DUNGEON
-7D33                    00308 
-7D33                    00309         ; ______
-7D33                    00310         ; I    I
-7D33                    00311         ; I #X I
-7D33                    00312         ; I X# I
-7D33                    00313         ;  \__/
-7D33                    00314         ;   
-7D36                    00315 ARMOR_FOUND:
-7D36  FE4601            00316         INC BYTE [BP+ARMOR]     ; INCREASE ARMOR LEVEL
-7D39  C3                00317         RET
-7D39                    00318 
-7D39                    00319         ;
-7D39                    00320         ;       /| _____________
-7D39                    00321         ; (|===|OO>_____________>
-7D39                    00322         ;       \|
-7D39                    00323         ;
-7D3A                    00324 WEAPON_FOUND:
-7D3A  FE4600            00325         INC BYTE [BP+WEAPON]    ; INCREASE WEAPON LEVEL
-7D3D  C3                00326         RET
-7D3D                    00327 
-7D3D                    00328         ;
-7D3D                    00329         ;     /--\
-7D3D                    00330         ; ====    I
-7D3D                    00331         ;     \--/
-7D3D                    00332         ;
-7D3E                    00333 FOOD_FOUND:
-7D3E  E8A100            00334         CALL RANDOM6            ; RANDOM 1-6
-7D41  EB05              00335         JMP SHORT ADD_HP
-7D41                    00336 
-7D41                    00337         ;
-7D41                    00338         ; AAAARGHHHH!
-7D41                    00339         ;
-7D43                    00340 TRAP_FOUND:
-7D43  E89C00            00341         CALL RANDOM6            ; RANDOM 1-6
-7D46  F7D8              00342 SUB_HP: NEG AX                  ; MAKE IT NEGATIVE
-7D48  034604            00343 ADD_HP: ADD AX,[BP+HP]          ; ADD TO CURRENT HP
-7D48                    00344     %IFDEF COM_FILE
-7D48                    00345         JS QUIT                 ; EXIT IF ESC KEY IS PRESSED
-7D48                    00346     %ELSE
-7D4B  78FE              00347         JS $                    ; STALL IF DEAD
-7D4B                    00348     %ENDIF
-7D4D  894604            00349         MOV [BP+HP],AX          ; UPDATE HP.
-7D4D                    00350         ;
-7D4D                    00351         ; UPDATE SCREEN INDICATOR
-7D4D                    00352         ;
-7D50  BB980F            00353         MOV BX,0X0F98           ; POINT TO BOTTOM RIGHT CORNER
-7D53                    00354 .1:
-7D53  99                00355         CWD                     ; EXTEND AX INTO DX
-7D54  B90A00            00356         MOV CX,10                                               
-7D57  F7F1              00357         DIV CX                  ; DIVIDE BY 10
-7D59  81C2300A          00358         ADD DX,0X0A30           ; ADD ASCII DIGIT ZERO AND COLOR TO REMAINDER
-7D5D  8917              00359         MOV [BX],DX             ; PUT ON SCREEN
-7D5F  4B                00360         DEC BX
-7D60  4B                00361         DEC BX
-7D61  09C0              00362         OR AX,AX                ; MORE DIGITS AVAILABLE?
-7D63  75EE              00363         JNZ .1                  ; YES, JUMP
-7D65  8907              00364         MOV [BX],AX             ; ERASE CHARACTER JUST IN CASE NUMBER SHRINKS
-7D67  C3                00365         RET
-7D67                    00366 
-7D67                    00367         ;
-7D67                    00368         ; LET'S BATTLE!!!
-7D67                    00369         ;
-7D68                    00370 BATTLE:
-7D68  241F              00371         AND AL,0X1F     ; SEPARATE NUMBER OF MONSTER (1-26)     
-7D6A  98                00372         CBW             ; EXTEND TO 16 BITS
-7D6B  D0E0              00373         SHL AL,1        ; MAKE IT SLIGHTLY HARDER
-7D6D  88C3              00374         MOV BL,AL       ; ITS ATTACK IS EQUIVALENT TO ITS NUMBER
-7D6F  96                00375         XCHG AX,SI      ; USE ALSO AS ITS HP
-7D6F                    00376         ; PLAYER'S ATTACK
-7D70                    00377 .2:
-7D70  8A7E00            00378         MOV BH,[BP+WEAPON]      ; USE CURRENT WEAPON LEVEL AS DICE
-7D73  E86E00            00379         CALL RANDOM
-7D76  29C6              00380         SUB SI,AX       ; SUBTRACT FROM MONSTER'S HP
-7D78  88DF              00381         MOV BH,BL
-7D7A  7211              00382         JC .3           ; KILLED? YES, JUMP
-7D7A                    00383         ; MONSTER'S ATTACK
-7D7C  E86500            00384         CALL RANDOM     ; USE MONSTER NUMBER AS DICE
-7D7F  2A4601            00385         SUB AL,[BP+ARMOR]       ; SUBTRACT ARMOR FROM ATTACK                               
-7D82  7205              00386         JC .4
-7D84  53                00387         PUSH BX
-7D85  E8BEFF            00388         CALL SUB_HP     ; SUBTRACT FROM PLAYER'S HP
-7D88  5B                00389         POP BX
-7D89                    00390 .4:
-7D89                    00391     ;   MOV AH,0X00     ; COMES HERE WITH AH = 0
-7D89  CD16              00392         INT 0X16        ; WAIT FOR A KEY.
-7D8B  EBE3              00393         JMP .2          ; ANOTHER BATTLE ROUND.
-7D8B                    00394 
-7D8B                    00395         ;
-7D8B                    00396         ; MONSTER IS DEAD
-7D8B                    00397         ;
-7D8D                    00398 .3:
-7D8D  C605FA            00399         MOV BYTE [DI],GR_FLOOR  ; REMOVE FROM SCREEN
-7D90  C3                00400         RET
-7D90                    00401 
-7D90                    00402         ;
-7D90                    00403         ; FILL A ROW ON SCREEN FOR A ROOM
-7D90                    00404         ;
-7D91  51                00405 FILL:   PUSH CX                 ; SAVE CX BECAUSE IT NEEDS CL VALUE AGAIN
-7D92  57                00406         PUSH DI                 ; SAVE VIDEO POSITION
-7D93  E81500            00407         CALL DOOR               ; LEFT BORDER
-7D96  88D8              00408 .1:     MOV AL,BL               ; FILLER
-7D98  E81000            00409         CALL DOOR
-7D9B  FEC9              00410         DEC CL
-7D9D  79F7              00411         JNS .1
-7D9F  88F8              00412         MOV AL,BH               ; RIGHT BORDER
-7DA1  E80700            00413         CALL DOOR
-7DA4  5F                00414         POP DI                  ; RESTORE VIDEO POSITION
-7DA5  59                00415         POP CX                  ; RESTORE CX                                        
-7DA6  81C7A000          00416         ADD DI,0X00A0           ; GOES TO NEXT ROW ON SCREEN
-7DAA  C3                00417         RET
-7DAA                    00418 
-7DAA                    00419         ;
-7DAA                    00420         ; DRAW A ROOM CHARACTER ON SCREEN
-7DAA                    00421         ;
-7DAB                    00422 DOOR:
-7DAB  3CFA              00423         CMP AL,GR_FLOOR         ; DRAWING FLOOR?
-7DAD  7521              00424         JNE .3                  ; NO, JUMP
-7DAF  53                00425         PUSH BX                 ; HERE BH IS EQUAL TO GR_VERT
-7DB0  E83100            00426         CALL RANDOM             ; GET A RANDOM NUMBER
-7DB3  3C06              00427         CMP AL,6                ; CHANCE OF CREATING A MONSTER
-7DB5  730D              00428         JNC .11
-7DB7  024603            00429         ADD AL,[BP+LEVEL]       ; MORE DIFFICULT MONSTERS AS LEVEL IS DEEPER
-7DBA                    00430 .9:
-7DBA  2C05              00431         SUB AL,0X05             
-7DBC  3C17              00432         CMP AL,0X17             ; MAKE SURE IT FITS INSIDE ASCII LETTERS
-7DBE  7DFA              00433         JGE .9
-7DC0  0444              00434         ADD AL,0X44             ; OFFSET INTO ASCII LETTERS
-7DC2  EB0B              00435         JMP SHORT .12
-7DC2                    00436 
-7DC4                    00437 .11:
-7DC4  BBF37D            00438         MOV BX,ITEMS-6          ; TABLE OF ITEMS
-7DC7  3C0B              00439         CMP AL,11               ; CHANCE OF CREATING AN ITEM
-7DC9  2ED7              00440         CS XLAT
-7DCB  7202              00441         JB .12
-7DCD  B0FA              00442         MOV AL,GR_FLOOR         ; SHOW ONLY FLOOR.
-7DCF  5B                00443 .12:    POP BX
-7DD0                    00444 .3:
-7DD0  3CCD              00445         CMP AL,GR_HORIZ
-7DD2  7404              00446         JE .1
-7DD4  3CBA              00447         CMP AL,GR_VERT
-7DD6  7507              00448         JNE .2
-7DD8  803DB1            00449 .1:     CMP BYTE [DI],GR_TUNNEL
-7DDB  7502              00450         JNE .2
-7DDD  B0CE              00451         MOV AL,GR_DOOR
-7DDF  AA                00452 .2:     STOSB
-7DE0  47                00453         INC DI
-7DE1  C3                00454         RET
-7DE1                    00455 
-7DE2                    00456 RANDOM6:
-7DE2  B706              00457         MOV BH,0X06
-7DE2                    00458 
-7DE4                    00459 RANDOM:
-7DE4  B8A11E            00460         MOV AX,7841
-7DE7  F76606            00461         MUL WORD [BP+RND]
-7DEA  055300            00462         ADD AX,83
-7DED  894606            00463         MOV [BP+RND],AX
-7DED                    00464  
-7DED                    00465 ;       RDTSC           ; WOULD MAKE IT DEPENDENT ON PENTIUM II
-7DED                    00466 
-7DED                    00467 ;       IN AL,(0X40)    ; ONLY WORKS FOR SLOW REQUIREMENTS.
-7DED                    00468 
-7DF0  30E4              00469         XOR AH,AH
-7DF2  F6F7              00470         DIV BH
-7DF4  88E0              00471         MOV AL,AH
-7DF6  98                00472         CBW
-7DF7  40                00473         INC AX
-7DF8  C3                00474         RET
-7DF8                    00475 
-7DF8                    00476         ;
-7DF8                    00477         ; ITEMS
-7DF8                    00478         ;
-7DF9                    00479 ITEMS:
-7DF9  05                00480         DB GR_FOOD
-7DFA  0F                00481         DB GR_GOLD
-7DFB  04                00482         DB GR_TRAP
-7DFC  18                00483         DB GR_WEAPON
-7DFD  08                00484         DB GR_ARMOR
-7DFD                    00485 
-7DFD                    00486     %IFDEF COM_FILE
-7DFD                    00487     %ELSE
-7DFE                    00488         TIMES 510-($-$$) DB 0X4F
-7DFE  55AA              00489         DB 0X55,0XAA            ; MAKE IT A BOOTABLE SECTOR
-7DFE                    00490     %ENDIF
-7DFE                    00491 
+0100                    00079 START:
+0100  E540              00080         IN AX,0X40      ; READ TIMER COUNTER
+0102  50                00081         PUSH AX         ; SETUP PSEUDORANDOM NUMBER GENERATOR
+0102                    00082 
+0103  B81000            00083         MOV AX,16
+0106  50                00084         PUSH AX         ; HP
+0107  B001              00085         MOV AL,1
+0109  50                00086         PUSH AX         ; YENDOR (LOW BYTE) + LEVEL (HIGH BYTE)
+010A  50                00087         PUSH AX         ; WEAPON (LOW BYTE) + ARMOR (HIGH BYTE)
+010B  40                00088         INC AX          ; AX = 0X0002 (IT WAS 0X0001)
+010C  CD10              00089         INT 0X10
+010E  B800B8            00090         MOV AX,0XB800   ; TEXT VIDEO SEGMENT
+0111  8ED8              00091         MOV DS,AX
+0113  8EC0              00092         MOV ES,AX
+0113                    00093 
+0115  89E5              00094         MOV BP,SP
+0117                    00095 GENERATE_DUNGEON:
+0117                    00096         ;
+0117                    00097         ; ADVANCE TO NEXT LEVEL (CAN GO DEEPER OR HIGHER)
+0117                    00098         ;
+0117  8A5E02            00099         MOV BL,[BP+YENDOR]
+011A  005E03            00100         ADD [BP+LEVEL],BL
+011A                    00101     %IFDEF COM_FILE
+011D  7503              00102         JNE .0
+011F  E91801            00103         JMP QUIT        ; STOP IF LEVEL ZERO IS REACHED
+0122                    00104 .0:
+0122                    00105     %ELSE
+0122                    00106         JE $            ; STOP IF LEVEL ZERO IS REACHED
+0122                    00107     %ENDIF
+0122                    00108 
+0122                    00109         ;
+0122                    00110         ; SELECT A MAZE FOR THE DUNGEON
+0122                    00111         ;
+0122                    00112         ; THERE ARE MANY COMBINATIONS OF VALUES THAT GENERATE AT LEAST
+0122                    00113         ; 16 MAZES IN ORDER TO AVOID A TABLE.
+0122                    00114         ;
+0122  8B4606            00115         MOV AX,[BP+RND]        
+0125  258241            00116         AND AX,0X4182
+0128  0D6D1A            00117         OR AX,0X1A6D
+012B  96                00118         XCHG AX,SI
+012B                    00119 
+012B                    00120         ;
+012B                    00121         ; CLEAN THE SCREEN
+012B                    00122         ;
+012C  31C0              00123         XOR AX,AX
+012E  31FF              00124         XOR DI,DI
+0130  B508              00125         MOV CH,0X08
+0132  F3AB              00126         REP STOSW
+0132                    00127 
+0132                    00128         ;
+0132                    00129         ; DRAW THE NINE ROOMS
+0132                    00130         ;
+0134  B85601            00131         MOV AX,(BOX_HEIGHT/2-2)*ROW_WIDTH+(BOX_WIDTH/2-2)*2
+0137                    00132 .7:
+0137  50                00133         PUSH AX
+0138  50                00134         PUSH AX
+0139  05A400            00135         ADD AX,ROW_WIDTH+4      ; GET THE CENTER OF ROOM
+013C  97                00136         XCHG AX,DI                                              
+013D  D1EE              00137         SHR SI,1                ; OBTAIN BIT OF RIGHT CONNECTION
+013F  B8B100            00138         MOV AX,0X0000+GR_TUNNEL
+0142  B91A00            00139         MOV CX,BOX_WIDTH
+0145  7304              00140         JNC .3
+0147  57                00141         PUSH DI
+0148  F3AB              00142         REP STOSW               ; HORIZONTAL TUNNEL
+014A  5F                00143         POP DI
+014B                    00144 .3:
+014B  D1EE              00145         SHR SI,1                ; OBTAIN BIT OF DOWN CONNECTION
+014D  7309              00146         JNC .5
+014F  B108              00147         MOV CL,BOX_HEIGHT
+0151                    00148 .4:
+0151  AA                00149         STOSB                   ; VERTICAL TUNNEL
+0152  81C79F00          00150         ADD DI,ROW_WIDTH-1
+0156  E2F9              00151         LOOP .4
+0158                    00152 .5:     
+0158  B715              00153         MOV BH,BOX_MAX_WIDTH-2  
+015A  E89001            00154         CALL RANDOM             ; GET A RANDOM WIDTH FOR ROOM.
+015D  91                00155         XCHG AX,CX
+015E  B704              00156         MOV BH,BOX_MAX_HEIGHT-2
+0160  E88A01            00157         CALL RANDOM             ; GET A RANDOM HEIGHT FOR ROOM.
+0163  88C5              00158         MOV CH,AL
+0165  24FE              00159         AND AL,0XFE             ; IT NEEDS A/2*2 SO THIS DOES IT.
+0167  B450              00160         MOV AH,ROW_WIDTH/2
+0169  F6E4              00161         MUL AH
+016B  01C8              00162         ADD AX,CX               ; NOW IT HAS A CENTERING OFFSET
+016D  28EC              00163         SUB AH,CH               ; BETTER THAN "mov bx,cx mov bh,0"
+016F  24FE              00164         AND AL,0XFE
+0171  5F                00165         POP DI
+0172  29C7              00166         SUB DI,AX               ; SUBTRACT FROM ROOM CENTER
+0174  B0C9              00167         MOV AL,GR_TOP_LEFT      ; DRAW TOP ROW OF ROOM
+0176  BBCDBB            00168         MOV BX,GR_TOP_RIGHT*256+GR_HORIZ
+0179  E81E01            00169         CALL FILL
+017C                    00170 .9:
+017C  B0BA              00171         MOV AL,GR_VERT          ; DRAW INTERMEDIATE ROW OF ROOM
+017E  BBFABA            00172         MOV BX,GR_VERT*256+GR_FLOOR     
+0181  E81601            00173         CALL FILL
+0184  FECD              00174         DEC CH
+0186  79F4              00175         JNS .9
+0188  B0C8              00176         MOV AL,GR_BOT_LEFT      ; DRAW BOTTOM ROW OF ROOM
+018A  BBCDBC            00177         MOV BX,GR_BOT_RIGHT*256+GR_HORIZ
+018D  E80A01            00178         CALL FILL
+0190  58                00179         POP AX
+0191  053400            00180         ADD AX,BOX_WIDTH*2
+0194  3CF2              00181         CMP AL,0XF2             ; FINISHED DRAWING THREE ROOMS?
+0196  7503              00182         JNE .6                  ; NO, JUMP
+0196                    00183                                 ; YES, GO TO FOLLOWING ROW
+0198  056404            00184         ADD AX,ROW_WIDTH*BOX_HEIGHT-BOX_WIDTH*3*2
+019B                    00185 .6:
+019B  3D000F            00186         CMP AX,ROW_WIDTH*BOX_HEIGHT*3
+019E  7297              00187         JB .7
+019E                    00188 
+019E                    00189         ;
+019E                    00190         ; PUT THE LADDER AT A RANDOM CORNER ROOM
+019E                    00191         ;
+01A0  D16606            00192         SHL WORD [BP+RND],1
+01A3  B8F801            00193         MOV AX,3*ROW_WIDTH+12*2       
+01A6  BBF80B            00194         MOV BX,19*ROW_WIDTH+12*2        
+01A9  7301              00195         JNC .2
+01AB  93                00196         XCHG AX,BX
+01AC  7903              00197 .2:     JNS .8
+01AE  056800            00198         ADD AX,BOX_WIDTH*2*2
+01B1                    00199 .8:
+01B1  97                00200         XCHG AX,DI
+01B1                    00201 
+01B2  C605F0            00202         MOV BYTE [DI],GR_LADDER
+01B2                    00203 
+01B2                    00204         ;
+01B2                    00205         ; IF A DEEP LEVEL HAS BEEN REACHED THEN PUT THE AMULET OF YENDOR
+01B2                    00206         ;
+01B5  807E031A          00207         CMP BYTE [BP+LEVEL],YENDOR_LEVEL
+01B9  7203              00208         JB .1
+01BB  C6070C            00209         MOV BYTE [BX],GR_YENDOR
+01BE                    00210 .1:
+01BE                    00211         ;
+01BE                    00212         ; SETUP HERO START
+01BE                    00213         ;
+01BE  BF2C07            00214         MOV DI,11*ROW_WIDTH+38*2
+01BE                    00215         ;
+01BE                    00216         ; MAIN GAME LOOP
+01BE                    00217         ;
+01C1                    00218 GAME_LOOP:
+01C1  B8C101            00219         MOV AX,GAME_LOOP        ; FORCE TO REPEAT, THE WHOLE LOOP...
+01C4  50                00220         PUSH AX                 ; ...ENDS WITH RET.
+01C4                    00221 
+01C4                    00222         ;
+01C4                    00223         ; CIRCLE OF LIGHT AROUND THE PLAYER (3X3)
+01C4                    00224         ;
+01C5  BB0500            00225         MOV BX,0X0005                   ; BX VALUES
+01C8  4B                00226 .1:     DEC BX
+01C9  4B                00227         DEC BX                          ; -1 1 3 -0X00A0
+01CA  B006              00228         MOV AL,LIGHT_COLOR     
+01CC  888160FF          00229         MOV [BX+DI-ROW_WIDTH],AL        ; -1(1)3 
+01D0  8801              00230         MOV [BX+DI],AL                      
+01D2  8881A000          00231         MOV [BX+DI+ROW_WIDTH],AL        ; -1 1 3 +0X00A0
+01D6  79F0              00232         JNS .1
+01D6                    00233 
+01D6                    00234         ;
+01D6                    00235         ; SHOW OUR HERO
+01D6                    00236         ;
+01D8  FF35              00237         PUSH WORD [DI]          ; SAVE CHARACTER UNDER 
+01DA  C705010E          00238         MOV WORD [DI],HERO_COLOR*256+GR_HERO
+01DE  31C0              00239         XOR AX,AX
+01E0  E86E00            00240         CALL ADD_HP             ; UPDATE STATS
+01E0                    00241     ;   MOV AH,0X00             ; COMES HERE WITH AH = 0
+01E3  CD16              00242         INT 0X16                ; READ KEYBOARD
+01E5  8F05              00243         POP WORD [DI]           ; RESTORE CHARACTER UNDER 
+01E5                    00244 
+01E7  88E0              00245         MOV AL,AH
+01E7                    00246     %IFDEF COM_FILE
+01E9  3C01              00247         CMP AL,0X01
+01EB  744D              00248         JE QUIT                 ; EXIT IF ESC KEY IS PRESSED
+01EB                    00249     %ENDIF
+01EB                    00250 
+01ED  2C4C              00251         SUB AL,0X4C
+01EF  B402              00252         MOV AH,0X02             ; LEFT/RIGHT MULTIPLIES BY 2
+01F1  3CFF              00253         CMP AL,0XFF             ; GOING LEFT (SCANCODE 0X4B)
+01F3  740E              00254         JE .2
+01F5  3C01              00255         CMP AL,0X01             ; GOING RIGHT (SCANCODE 0X4D)
+01F7  740A              00256         JE .2
+01F9  3CFC              00257         CMP AL,0XFC             ; GOING UP (SCANCODE 0X48)
+01FB  7404              00258         JE .3
+01FD  3C04              00259         CMP AL,0X04             ; GOING DOWN (SCANCODE 0X50)
+01FF  7538              00260         JNE MOVE_CANCEL
+0201                    00261 .3:
+0201  B428              00262         MOV AH,0X28             ; UP/DOWN MULTIPLIES BY 40
+0203                    00263 .2:
+0203  F6EC              00264         IMUL AH                 ; SIGNED MULTIPLICATION
+0203                    00265 
+0205  93                00266         XCHG AX,BX              ; BX = DISPLACEMENT OFFSET
+0206  8A01              00267         MOV AL,[DI+BX]          ; READ THE TARGET CONTENTS
+0208  3CF0              00268         CMP AL,GR_LADDER        ; GR_LADDER?
+020A  7430              00269         JE LADDER_FOUND         ; YES, JUMP TO NEXT LEVEL
+020C  7729              00270         JA MOVE_OVER            ; > IT MUST BE GR_FLOOR
+020E  3CCE              00271         CMP AL,GR_DOOR          ; GR_DOOR?
+0210  7425              00272         JE MOVE_OVER            ; YES, CAN MOVE
+0212  3CB1              00273         CMP AL,GR_TUNNEL        ; GR_TUNNEL?
+0214  7421              00274         JE MOVE_OVER            ; YES, CAN MOVE
+0216  7721              00275         JA MOVE_CANCEL          ; > IT MUST BE BORDER, CANCEL MOVEMENT
+0218  3C04              00276         CMP AL,GR_TRAP          ; GR_TRAP?
+021A  721D              00277         JB MOVE_CANCEL          ; < IT MUST BE BLANK, CANCEL MOVEMENT
+021C  8D39              00278         LEA DI,[DI+BX]          ; DO MOVE.
+021E  742C              00279         JE TRAP_FOUND           ; = YES, WENT OVER TRAP
+0220  3C18              00280         CMP AL,GR_WEAPON        ; GR_WEAPON?
+0222  774D              00281         JA BATTLE               ; > IT's a monster, go to battle
+
+0224  C605FA            00282         MOV BYTE [DI],GR_FLOOR  ; DELETE ITEM FROM FLOOR
+0227  741A              00283         JE WEAPON_FOUND         ; = WEAPON FOUND
+0229  3C08              00284         CMP AL,GR_ARMOR         ; GR_ARMOR?
+022B  7412              00285         JE ARMOR_FOUND          ; YES, INCREASE ARMOR
+022D  7218              00286         JB FOOD_FOUND           ; < IT's GR_FOOD, increase hp
+
+022F  3C0F              00287         CMP AL,GR_GOLD          ; GR_GOLD?
+0231  7406              00288         JE MOVE_CANCEL          ; YES, SIMPLY TAKE IT.
+0231                    00289         ; AT THIS POINT 'al' ONLY CAN BE GR_YENDOR
+0231                    00290         ; AMULET OF YENDOR FOUND!
+0233  F65E02            00291         NEG BYTE [BP+YENDOR]    ; NOW PLAYER GOES UPWARDS OVER LADDERS.
+0236  C3                00292         RET
+0237                    00293 MOVE_OVER:        
+0237  8D39              00294         LEA DI,[BX+DI]          ; DO MOVE.
+0239                    00295 MOVE_CANCEL:
+0239  C3                00296         RET                     ; RETURN TO MAIN LOOP.
+0239                    00297 
+0239                    00298     %IFDEF COM_FILE
+023A                    00299 QUIT:
+023A  CD20              00300         INT 0X20
+023A                    00301     %ENDIF
+023A                    00302 
+023A                    00303         ;
+023A                    00304         ;     I--
+023A                    00305         ;   I--
+023A                    00306         ; I--
+023A                    00307         ;
+023C                    00308 LADDER_FOUND:
+023C  E9D8FE            00309         JMP GENERATE_DUNGEON
+023C                    00310 
+023C                    00311         ; ______
+023C                    00312         ; I    I
+023C                    00313         ; I #X I
+023C                    00314         ; I X# I
+023C                    00315         ;  \__/
+023C                    00316         ;   
+023F                    00317 ARMOR_FOUND:
+023F  FE4601            00318         INC BYTE [BP+ARMOR]     ; INCREASE ARMOR LEVEL
+0242  C3                00319         RET
+0242                    00320 
+0242                    00321         ;
+0242                    00322         ;       /| _____________
+0242                    00323         ; (|===|OO>_____________>
+0242                    00324         ;       \|
+0242                    00325         ;
+0243                    00326 WEAPON_FOUND:
+0243  FE4600            00327         INC BYTE [BP+WEAPON]    ; INCREASE WEAPON LEVEL
+0246  C3                00328         RET
+0246                    00329 
+0246                    00330         ;
+0246                    00331         ;     /--\
+0246                    00332         ; ====    I
+0246                    00333         ;     \--/
+0246                    00334         ;
+0247                    00335 FOOD_FOUND:
+0247  E8A100            00336         CALL RANDOM6            ; RANDOM 1-6
+024A  EB05              00337         JMP SHORT ADD_HP
+024A                    00338 
+024A                    00339         ;
+024A                    00340         ; AAAARGHHHH!
+024A                    00341         ;
+024C                    00342 TRAP_FOUND:
+024C  E89C00            00343         CALL RANDOM6            ; RANDOM 1-6
+024F  F7D8              00344 SUB_HP: NEG AX                  ; MAKE IT NEGATIVE
+0251  034604            00345 ADD_HP: ADD AX,[BP+HP]          ; ADD TO CURRENT HP
+0251                    00346     %IFDEF COM_FILE
+0254  78E4              00347         JS QUIT                 ; EXIT IF ESC KEY IS PRESSED
+0254                    00348     %ELSE
+0254                    00349         JS $                    ; STALL IF DEAD
+0254                    00350     %ENDIF
+0256  894604            00351         MOV [BP+HP],AX          ; UPDATE HP.
+0256                    00352         ;
+0256                    00353         ; UPDATE SCREEN INDICATOR
+0256                    00354         ;
+0259  BB980F            00355         MOV BX,0X0F98           ; POINT TO BOTTOM RIGHT CORNER
+025C                    00356 .1:
+025C  99                00357         CWD                     ; EXTEND AX INTO DX
+025D  B90A00            00358         MOV CX,10                                               
+0260  F7F1              00359         DIV CX                  ; DIVIDE BY 10
+0262  81C2300A          00360         ADD DX,0X0A30           ; ADD ASCII DIGIT ZERO AND COLOR TO REMAINDER
+0266  8917              00361         MOV [BX],DX             ; PUT ON SCREEN
+0268  4B                00362         DEC BX
+0269  4B                00363         DEC BX
+026A  09C0              00364         OR AX,AX                ; MORE DIGITS AVAILABLE?
+026C  75EE              00365         JNZ .1                  ; YES, JUMP
+026E  8907              00366         MOV [BX],AX             ; ERASE CHARACTER JUST IN CASE NUMBER SHRINKS
+0270  C3                00367         RET
+0270                    00368 
+0270                    00369         ;
+0270                    00370         ; LET's battle!!!
+
+0270                    00371         ;
+0271                    00372 BATTLE:
+0271  241F              00373         AND AL,0X1F     ; SEPARATE NUMBER OF MONSTER (1-26)     
+0273  98                00374         CBW             ; EXTEND TO 16 BITS
+0274  D0E0              00375         SHL AL,1        ; MAKE IT SLIGHTLY HARDER
+0276  88C3              00376         MOV BL,AL       ; ITS ATTACK IS EQUIVALENT TO ITS NUMBER
+0278  96                00377         XCHG AX,SI      ; USE ALSO AS ITS HP
+0278                    00378         ; PLAYER's attack
+
+0279                    00379 .2:
+0279  8A7E00            00380         MOV BH,[BP+WEAPON]      ; USE CURRENT WEAPON LEVEL AS DICE
+027C  E86E00            00381         CALL RANDOM
+027F  29C6              00382         SUB SI,AX       ; SUBTRACT FROM MONSTER's HP
+
+0281  88DF              00383         MOV BH,BL
+0283  7211              00384         JC .3           ; KILLED? YES, JUMP
+0283                    00385         ; MONSTER's attack
+
+0285  E86500            00386         CALL RANDOM     ; USE MONSTER NUMBER AS DICE
+0288  2A4601            00387         SUB AL,[BP+ARMOR]       ; SUBTRACT ARMOR FROM ATTACK                               
+028B  7205              00388         JC .4
+028D  53                00389         PUSH BX
+028E  E8BEFF            00390         CALL SUB_HP     ; SUBTRACT FROM PLAYER's HP
+
+0291  5B                00391         POP BX
+0292                    00392 .4:
+0292                    00393     ;   MOV AH,0X00     ; COMES HERE WITH AH = 0
+0292  CD16              00394         INT 0X16        ; WAIT FOR A KEY.
+0294  EBE3              00395         JMP .2          ; ANOTHER BATTLE ROUND.
+0294                    00396 
+0294                    00397         ;
+0294                    00398         ; MONSTER IS DEAD
+0294                    00399         ;
+0296                    00400 .3:
+0296  C605FA            00401         MOV BYTE [DI],GR_FLOOR  ; REMOVE FROM SCREEN
+0299  C3                00402         RET
+0299                    00403 
+0299                    00404         ;
+0299                    00405         ; FILL A ROW ON SCREEN FOR A ROOM
+0299                    00406         ;
+029A  51                00407 FILL:   PUSH CX                 ; SAVE CX BECAUSE IT NEEDS CL VALUE AGAIN
+029B  57                00408         PUSH DI                 ; SAVE VIDEO POSITION
+029C  E81500            00409         CALL DOOR               ; LEFT BORDER
+029F  88D8              00410 .1:     MOV AL,BL               ; FILLER
+02A1  E81000            00411         CALL DOOR
+02A4  FEC9              00412         DEC CL
+02A6  79F7              00413         JNS .1
+02A8  88F8              00414         MOV AL,BH               ; RIGHT BORDER
+02AA  E80700            00415         CALL DOOR
+02AD  5F                00416         POP DI                  ; RESTORE VIDEO POSITION
+02AE  59                00417         POP CX                  ; RESTORE CX                                        
+02AF  81C7A000          00418         ADD DI,0X00A0           ; GOES TO NEXT ROW ON SCREEN
+02B3  C3                00419         RET
+02B3                    00420 
+02B3                    00421         ;
+02B3                    00422         ; DRAW A ROOM CHARACTER ON SCREEN
+02B3                    00423         ;
+02B4                    00424 DOOR:
+02B4  3CFA              00425         CMP AL,GR_FLOOR         ; DRAWING FLOOR?
+02B6  7521              00426         JNE .3                  ; NO, JUMP
+02B8  53                00427         PUSH BX                 ; HERE BH IS EQUAL TO GR_VERT
+02B9  E83100            00428         CALL RANDOM             ; GET A RANDOM NUMBER
+02BC  3C06              00429         CMP AL,6                ; CHANCE OF CREATING A MONSTER
+02BE  730D              00430         JNC .11
+02C0  024603            00431         ADD AL,[BP+LEVEL]       ; MORE DIFFICULT MONSTERS AS LEVEL IS DEEPER
+02C3                    00432 .9:
+02C3  2C05              00433         SUB AL,0X05             
+02C5  3C17              00434         CMP AL,0X17             ; MAKE SURE IT FITS INSIDE ASCII LETTERS
+02C7  7DFA              00435         JGE .9
+02C9  0444              00436         ADD AL,0X44             ; OFFSET INTO ASCII LETTERS
+02CB  EB0B              00437         JMP SHORT .12
+02CB                    00438 
+02CD                    00439 .11:
+02CD  BBFC02            00440         MOV BX,ITEMS-6          ; TABLE OF ITEMS
+02D0  3C0B              00441         CMP AL,11               ; CHANCE OF CREATING AN ITEM
+02D2  2ED7              00442         CS XLAT
+02D4  7202              00443         JB .12
+02D6  B0FA              00444         MOV AL,GR_FLOOR         ; SHOW ONLY FLOOR.
+02D8  5B                00445 .12:    POP BX
+02D9                    00446 .3:
+02D9  3CCD              00447         CMP AL,GR_HORIZ
+02DB  7404              00448         JE .1
+02DD  3CBA              00449         CMP AL,GR_VERT
+02DF  7507              00450         JNE .2
+02E1  803DB1            00451 .1:     CMP BYTE [DI],GR_TUNNEL
+02E4  7502              00452         JNE .2
+02E6  B0CE              00453         MOV AL,GR_DOOR
+02E8  AA                00454 .2:     STOSB
+02E9  47                00455         INC DI
+02EA  C3                00456         RET
+02EA                    00457 
+02EB                    00458 RANDOM6:
+02EB  B706              00459         MOV BH,0X06
+02EB                    00460 
+02ED                    00461 RANDOM:
+02ED  B8A11E            00462         MOV AX,7841
+02F0  F76606            00463         MUL WORD [BP+RND]
+02F3  055300            00464         ADD AX,83
+02F6  894606            00465         MOV [BP+RND],AX
+02F6                    00466  
+02F6                    00467 ;       RDTSC           ; WOULD MAKE IT DEPENDENT ON PENTIUM II
+02F6                    00468 
+02F6                    00469 ;       IN AL,(0X40)    ; ONLY WORKS FOR SLOW REQUIREMENTS.
+02F6                    00470 
+02F9  30E4              00471         XOR AH,AH
+02FB  F6F7              00472         DIV BH
+02FD  88E0              00473         MOV AL,AH
+02FF  98                00474         CBW
+0300  40                00475         INC AX
+0301  C3                00476         RET
+0301                    00477 
+0301                    00478         ;
+0301                    00479         ; ITEMS
+0301                    00480         ;
+0302                    00481 ITEMS:
+0302  05                00482         DB GR_FOOD
+0303  0F                00483         DB GR_GOLD
+0304  04                00484         DB GR_TRAP
+0305  18                00485         DB GR_WEAPON
+0306  08                00486         DB GR_ARMOR
+0306                    00487 
+0306                    00488     %IFDEF COM_FILE
+0306                    00489     %ELSE
+0306                    00490         TIMES 510-($-$$) DB 0X4F
+0306                    00491         DB 0X55,0XAA            ; MAKE IT A BOOTABLE SECTOR
+0306                    00492     %ENDIF
+0306                    00493 
 
 00000 ERRORS FOUND
 00000 WARNINGS FOUND
 
-00512 PROGRAM BYTES
+01038 PROGRAM BYTES
 
 LABEL                VALUE/ADDRESS
 
-ITEMS                7df9
-RANDOM               7de4
-RANDOM6              7de2
-DOOR.2               7ddf
-DOOR.1               7dd8
-DOOR.3               7dd0
-DOOR.12              7dcf
-DOOR.11              7dc4
-DOOR.9               7dba
-DOOR                 7dab
-FILL.1               7d96
-FILL                 7d91
-BATTLE.3             7d8d
-BATTLE.4             7d89
-BATTLE.2             7d70
-BATTLE               7d68
-ADD_HP.1             7d53
-ADD_HP               7d48
-SUB_HP               7d46
-TRAP_FOUND           7d43
-FOOD_FOUND           7d3e
-WEAPON_FOUND         7d3a
-ARMOR_FOUND          7d36
-LADDER_FOUND         7d33
-MOVE_CANCEL          7d32
-MOVE_OVER            7d30
-GAME_LOOP.2          7cfc
-GAME_LOOP.3          7cfa
-GAME_LOOP.1          7cc5
-GAME_LOOP            7cbe
-GENERATE_DUNGEON.1   7cbb
-GENERATE_DUNGEON.8   7cae
-GENERATE_DUNGEON.2   7ca9
-GENERATE_DUNGEON.6   7c98
-GENERATE_DUNGEON.9   7c79
-GENERATE_DUNGEON.5   7c55
-GENERATE_DUNGEON.4   7c4e
-GENERATE_DUNGEON.3   7c48
-GENERATE_DUNGEON.7   7c34
-GENERATE_DUNGEON     7c17
-START                7c00
-WEAPON               0000
+ADD_HP               0251
+ADD_HP.1             025c
 ARMOR                0001
-YENDOR               0002
-LEVEL                0003
-HP                   0004
-RND                  0006
-YENDOR_LEVEL         001a
-GR_WEAPON            0018
-GR_GOLD              000f
-GR_YENDOR            000c
-GR_ARMOR             0008
-GR_FOOD              0005
-GR_TRAP              0004
-GR_LADDER            00f0
-GR_HERO              0001
-GR_FLOOR             00fa
-GR_DOOR              00ce
-GR_TUNNEL            00b1
-GR_HORIZ             00cd
-GR_TOP_LEFT          00c9
-GR_BOT_LEFT          00c8
-GR_BOT_RIGHT         00bc
-GR_TOP_RIGHT         00bb
-GR_VERT              00ba
-HERO_COLOR           000e
-LIGHT_COLOR          0006
+ARMOR_FOUND          023f
+BATTLE               0271
+BATTLE.2             0279
+BATTLE.3             0296
+BATTLE.4             0292
 BOX_HEIGHT           0008
-BOX_WIDTH            001a
 BOX_MAX_HEIGHT       0006
 BOX_MAX_WIDTH        0017
+BOX_WIDTH            001a
+COM_FILE             0001
+DOOR                 02b4
+DOOR.1               02e1
+DOOR.11              02cd
+DOOR.12              02d8
+DOOR.2               02e8
+DOOR.3               02d9
+DOOR.9               02c3
+FILL                 029a
+FILL.1               029f
+FOOD_FOUND           0247
+GAME_LOOP            01c1
+GAME_LOOP.1          01c8
+GAME_LOOP.2          0203
+GAME_LOOP.3          0201
+GENERATE_DUNGEON     0117
+GENERATE_DUNGEON.0   0122
+GENERATE_DUNGEON.1   01be
+GENERATE_DUNGEON.2   01ac
+GENERATE_DUNGEON.3   014b
+GENERATE_DUNGEON.4   0151
+GENERATE_DUNGEON.5   0158
+GENERATE_DUNGEON.6   019b
+GENERATE_DUNGEON.7   0137
+GENERATE_DUNGEON.8   01b1
+GENERATE_DUNGEON.9   017c
+GR_ARMOR             0008
+GR_BOT_LEFT          00c8
+GR_BOT_RIGHT         00bc
+GR_DOOR              00ce
+GR_FLOOR             00fa
+GR_FOOD              0005
+GR_GOLD              000f
+GR_HERO              0001
+GR_HORIZ             00cd
+GR_LADDER            00f0
+GR_TOP_LEFT          00c9
+GR_TOP_RIGHT         00bb
+GR_TRAP              0004
+GR_TUNNEL            00b1
+GR_VERT              00ba
+GR_WEAPON            0018
+GR_YENDOR            000c
+HERO_COLOR           000e
+HP                   0004
+ITEMS                0302
+LADDER_FOUND         023c
+LEVEL                0003
+LIGHT_COLOR          0006
+MOVE_CANCEL          0239
+MOVE_OVER            0237
+QUIT                 023a
+RANDOM               02ed
+RANDOM6              02eb
+RND                  0006
 ROW_WIDTH            00a0
+START                0100
+SUB_HP               024f
+TRAP_FOUND           024c
+WEAPON               0000
+WEAPON_FOUND         0243
+YENDOR               0002
+YENDOR_LEVEL         001a

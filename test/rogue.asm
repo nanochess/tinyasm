@@ -99,7 +99,9 @@ generate_dungeon:
         mov bl,[bp+yendor]
         add [bp+level],bl
     %ifdef com_file
-        je quit         ; Stop if level zero is reached
+        jne .0
+        jmp quit        ; Stop if level zero is reached
+.0:
     %else
         je $            ; Stop if level zero is reached
     %endif
