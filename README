@@ -31,6 +31,11 @@ Using the same command line syntax as nasm:
 
   tinyasm -f bin rogue.asm -o rogue.img -l rogue.lst
 
+There is also the -d option for define labels:
+
+  -dCOM_FILE
+  -dCOM_FILE=1
+
 
 >> DIFFERENCES BETWEEN TINYASM AND NASM >>
 
