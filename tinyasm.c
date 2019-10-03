@@ -97,16 +97,21 @@ struct label *define_label(name, value)
     struct label *explore;
     int c;
     
+    /* Allocate label */
     label = malloc(sizeof(struct label) + strlen(name));
     if (label == NULL) {
         fprintf(stderr, "Out of memory for label\n");
         exit(1);
         return NULL;
     }
+    
+    /* Fill label */
     label->left = NULL;
     label->right = NULL;
     label->value = value;
     strcpy(label->name, name);
+    
+    /* Populate binary tree */
     if (label_list == NULL) {
         label_list = label;
     } else {
@@ -140,6 +145,7 @@ struct label *find_label(name)
     struct label *explore;
     int c;
     
+    /* Follows a binary tree */
     explore = label_list;
     while (explore != NULL) {
         c = strcmp(name, explore->name);
@@ -154,7 +160,7 @@ struct label *find_label(name)
 }
 
 /*
- ** Sort labels
+ ** Sort recursively labels (already done by binary tree)
  */
 void sort_labels(node)
     struct label *node;
@@ -167,7 +173,7 @@ void sort_labels(node)
 }
 
 /*
- ** Avoid spaces
+ ** Avoid spaces in input
  */
 char *avoid_spaces(p)
     char *p;
@@ -284,7 +290,7 @@ char *match_addressing(p, width)
             } else {    /* Syntax error */
                 return NULL;
             }
-        } else {    /* No valid register, try expression */
+        } else {    /* No valid register, try expression (absolute addressing) */
             p2 = match_expression(p, &instruction_offset);
             if (p2 == NULL)
                 return NULL;
@@ -295,7 +301,7 @@ char *match_addressing(p, width)
             *bits = 0x06;
             instruction_offset_width = 2;
         }
-    } else {
+    } else {    /* Register */
         p = match_register(p, width, &reg);
         if (p == NULL)
             return NULL;
@@ -305,7 +311,7 @@ char *match_addressing(p, width)
 }
 
 /*
- **
+ ** Check for a label character
  */
 int islabel(c)
     int c;
@@ -330,7 +336,7 @@ char *match_register(p, width, value)
     reg[0] = p[0];
     reg[1] = p[1];
     reg[2] = '\0';
-    if (width == 8) {
+    if (width == 8) {   /* 8-bit */
         for (c = 0; c < 8; c++)
             if (strcmp(reg, reg1[c]) == 0)
                 break;
@@ -338,7 +344,7 @@ char *match_register(p, width, value)
             *value = c;
             return p + 2;
         }
-    } else {
+    } else {    /* 16-bit */
         for (c = 0; c < 8; c++)
             if (strcmp(reg, reg1[c + 8]) == 0)
                 break;
@@ -351,7 +357,7 @@ char *match_register(p, width, value)
 }
 
 /*
- ** Read character
+ ** Read character for string or character literal
  */
 char *read_character(p, c)
     char *p;
@@ -410,7 +416,7 @@ char *read_character(p, c)
 }
 
 /*
- ** Match expression
+ ** Match expression (top tier)
  */
 char *match_expression(p, value)
     char *p;
@@ -423,7 +429,7 @@ char *match_expression(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '|') {
+        if (*p == '|') {    /* Binary OR */
             p++;
             value1 = *value;
             p = match_expression_level1(p, value);
@@ -436,6 +442,9 @@ char *match_expression(p, value)
     }
 }
 
+/*
+ ** Match expression
+ */
 char *match_expression_level1(p, value)
     char *p;
     int *value;
@@ -447,7 +456,7 @@ char *match_expression_level1(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '^') {
+        if (*p == '^') {    /* Binary XOR */
             p++;
             value1 = *value;
             p = match_expression_level2(p, value);
@@ -460,6 +469,9 @@ char *match_expression_level1(p, value)
     }
 }
 
+/*
+ ** Match expression
+ */
 char *match_expression_level2(p, value)
     char *p;
     int *value;
@@ -471,7 +483,7 @@ char *match_expression_level2(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '&') {
+        if (*p == '&') {    /* Binary AND */
             p++;
             value1 = *value;
             p = match_expression_level3(p, value);
@@ -484,6 +496,9 @@ char *match_expression_level2(p, value)
     }
 }
 
+/*
+ ** Match expression
+ */
 char *match_expression_level3(p, value)
     char *p;
     int *value;
@@ -495,14 +510,14 @@ char *match_expression_level3(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '<' && p[1] == '<') {
+        if (*p == '<' && p[1] == '<') { /* Shift to left */
             p += 2;
             value1 = *value;
             p = match_expression_level4(p, value);
             if (p == NULL)
                 return NULL;
             *value = value1 << *value;
-        } else if (*p == '>' && p[1] == '>') {
+        } else if (*p == '>' && p[1] == '>') {  /* Shift to right */
             p += 2;
             value1 = *value;
             p = match_expression_level4(p, value);
@@ -515,6 +530,9 @@ char *match_expression_level3(p, value)
     }
 }
 
+/*
+ ** Match expression
+ */
 char *match_expression_level4(p, value)
     char *p;
     int *value;
@@ -526,14 +544,14 @@ char *match_expression_level4(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '+') {
+        if (*p == '+') {    /* Add operator */
             p++;
             value1 = *value;
             p = match_expression_level5(p, value);
             if (p == NULL)
                 return NULL;
             *value = value1 + *value;
-        } else if (*p == '-') {
+        } else if (*p == '-') { /* Subtract operator */
             p++;
             value1 = *value;
             p = match_expression_level5(p, value);
@@ -546,6 +564,9 @@ char *match_expression_level4(p, value)
     }
 }
 
+/*
+ ** Match expression
+ */
 char *match_expression_level5(p, value)
     char *p;
     int *value;
@@ -557,14 +578,14 @@ char *match_expression_level5(p, value)
         return NULL;
     while (1) {
         p = avoid_spaces(p);
-        if (*p == '*') {
+        if (*p == '*') {    /* Multiply operator */
             p++;
             value1 = *value;
             p = match_expression_level6(p, value);
             if (p == NULL)
                 return NULL;
             *value = value1 * *value;
-        } else if (*p == '/') {
+        } else if (*p == '/') { /* Division operator */
             p++;
             value1 = *value;
             p = match_expression_level6(p, value);
@@ -576,7 +597,7 @@ char *match_expression_level5(p, value)
                 *value = 1;
             }
             *value = (unsigned) value1 / *value;
-        } else if (*p == '%') {
+        } else if (*p == '%') { /* Modulo operator */
             p++;
             value1 = *value;
             p = match_expression_level6(p, value);
@@ -594,6 +615,9 @@ char *match_expression_level5(p, value)
     }
 }
 
+/*
+ ** Match expression (bottom tier)
+ */
 char *match_expression_level6(p, value)
     char *p;
     int *value;
@@ -630,7 +654,7 @@ char *match_expression_level6(p, value)
             return NULL;
         return p;
     }
-    if (p[0] == '0' && tolower(p[1]) == 'b') {
+    if (p[0] == '0' && tolower(p[1]) == 'b') {  /* Binary */
         p += 2;
         number = 0;
         while (p[0] == '0' || p[0] == '1' || p[0] == '_') {
@@ -674,7 +698,7 @@ char *match_expression_level6(p, value)
         *value = number;
         return p;
     }
-    if (p[0] == '\'') {
+    if (p[0] == '\'') { /* Character constant */
         p++;
         p = read_character(p, value);
         if (p[0] != '\'') {
@@ -880,7 +904,7 @@ char *match(p, pattern, decode)
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 's') {
+            } else if (*pattern == 's') {   /* Signed immediate */
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
@@ -904,7 +928,7 @@ char *match(p, pattern, decode)
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'f') {
+            } else if (*pattern == 'f') {   /* FAR pointer */
                 pattern++;
                 if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
@@ -1125,7 +1149,7 @@ void process_instruction()
     char *p3;
     int c;
     
-    if (strcmp(part, "DB") == 0) {
+    if (strcmp(part, "DB") == 0) {  /* Define byte */
         while (1) {
             p = avoid_spaces(p);
             if (*p == '"') {    /* ASCII text */
@@ -1158,7 +1182,7 @@ void process_instruction()
         }
         return;
     }
-    if (strcmp(part, "DW") == 0) {
+    if (strcmp(part, "DW") == 0) {  /* Define word */
         while (1) {
             p2 = match_expression(p, &instruction_value);
             if (p2 == NULL) {
@@ -1177,7 +1201,7 @@ void process_instruction()
         }
         return;
     }
-    while (part[0]) {
+    while (part[0]) {   /* Match against instruction set */
         c = 0;
         while (instruction_set[c] != NULL) {
             if (strcmp(part, instruction_set[c]) == 0) {

@@ -1,3 +1,13 @@
+/*
+ ** TinyASM - 8086/8088 assembler for DOS
+ **
+ ** Instruction set.
+ **
+ ** by Oscar Toledo G.
+ **
+ ** Creation date: Oct/01/2019.
+ */
+
 #include <stdio.h>
 
 /*
