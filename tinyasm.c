@@ -517,7 +517,7 @@ char *match_expression_level6(p, value)
     if (p[0] == '0' && tolower(p[1]) == 'b') {
         p += 2;
         number = 0;
-        while (p[0] == '0' || p[0] == '1' || p[0] == '-') {
+        while (p[0] == '0' || p[0] == '1' || p[0] == '_') {
             if (p[0] != '_') {
                 number <<= 1;
                 if (p[0] == '1')
