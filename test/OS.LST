@@ -1,0 +1,728 @@
+                        00001         ;
+                        00002         ; BOOTOS, AN OPERATING SYSTEM IN 512 BYTES
+                        00003         ;
+                        00004         ; BY OSCAR TOLEDO G.
+                        00005         ; HTTP://NANOCHESS.ORG/
+                        00006         ;
+                        00007         ; CREATION DATE: JUL/21/2019. 6PM 10PM
+                        00008         ; REVISION DATE: JUL/22/2019. OPTIMIZATION, CORRECTIONS AND COMMENTS.
+                        00009         ; REVISION DATE: JUL/31/2019. ADDED A SERVICE TABLE AND ALLOWS
+                        00010         ;                             FILENAMES/SOURCES/TARGETS FROM ANY SEGMENT.
+                        00011         ;                             'del' COMMAND NOW SHOWS ERRORS.
+                        00012         ;
+                        00013 
+                        00014         CPU 8086
+                        00015 
+                        00016         ;
+                        00017         ; WHAT IS BOOTOS:
+                        00018         ; 
+                        00019         ;   BOOTOS IS A MONOLITHIC OPERATING SYSTEM THAT FITS IN
+                        00020         ;   ONE BOOT SECTOR. IT's able to load, execute, and save
+
+                        00021         ;   PROGRAMS. ALSO KEEPS A FILESYSTEM. IT CAN WORK WITH
+                        00022         ;   ANY FLOPPY DISK SIZE STARTING AT 180K.
+                        00023         ; 
+                        00024         ;   IT RELOCATES ITSELF AT 0000:7A00 AND REQUIRES FURTHER
+                        00025         ;   768 BYTES OF MEMORY STARTING AT 0000:7700.
+                        00026         ; 
+                        00027         ;   THIS OPERATING SYSTEM RUNS PROGRAMS AS BOOT SECTORS
+                        00028         ;   AT 0000:7C00. 
+                        00029         ; 
+                        00030         ;   IT PROVIDES THE FOLLOWING SERVICES:
+                        00031         ;      INT 0X20   EXIT TO OPERATING SYSTEM.
+                        00032         ;      INT 0X21   INPUT KEY AND SHOW IN SCREEN.
+                        00033         ;                 ENTRY: NONE
+                        00034         ;                 OUTPUT: AL = ASCII KEY PRESSED.
+                        00035         ;                 AFFECTS: AH/BX/BP.
+                        00036         ;      INT 0X22   OUTPUT CHARACTER TO SCREEN.
+                        00037         ;                 ENTRY: AL = CHARACTER.
+                        00038         ;                 OUTPUT: NONE.
+                        00039         ;                 AFFECTS: AH/BX/BP.
+                        00040         ;      INT 0X23   LOAD FILE.
+                        00041         ;                 ENTRY: DS:BX = FILENAME TERMINATED WITH ZERO.
+                        00042         ;                        ES:DI = POINT TO SOURCE DATA (512 BYTES)
+                        00043         ;                 OUTPUT: CARRY FLAG = 0 = FOUND, 1 = NOT FOUND.
+                        00044         ;                 AFFECTS: ALL REGISTERS (INCLUDING ES).
+                        00045         ;      INT 0X24   SAVE FILE.
+                        00046         ;                 ENTRY: DS:BX = FILENAME TERMINATED WITH ZERO.
+                        00047         ;                        ES:DI = POINT TO DATA TARGET (512 BYTES)
+                        00048         ;                 OUTPUT: CARRY FLAG = 0 = SUCCESSFUL. 1 = ERROR.
+                        00049         ;                 AFFECTS: ALL REGISTERS (INCLUDING ES).
+                        00050         ;      INT 0X25   DELETE FILE.
+                        00051         ;                 ENTRY: DS:BX = FILENAME TERMINATED WITH ZERO.
+                        00052         ;                 AFFECTS: ALL REGISTERS (INCLUDING ES).
+                        00053         ;
+                        00054         ; 
+                        00055         ; FILESYSTEM ORGANIZATION:
+                        00056         ;
+                        00057         ;   BOOTOS USES TRACKS FROM 0 TO 32, SIDE 0, SECTOR 1.
+                        00058         ;
+                        00059         ;   THE DIRECTORY IS CONTAINED IN TRACK 0, SIDE 0, SECTOR 2.
+                        00060         ;
+                        00061         ;   EACH ENTRY IN THE DIRECTORY IS 16 BYTES WIDE, AND
+                        00062         ;   CONTAINS THE ASCII NAME OF THE FILE FINISHED WITH A
+                        00063         ;   ZERO BYTE. A SECTOR HAS A CAPACITY OF 512 BYTES, IT
+                        00064         ;   MEANS ONLY 32 FILES CAN BE KEPT ON A FLOPPY DISK.
+                        00065         ;
+                        00066         ;   DELETING A FILE IS A MATTER OF ZEROING A WHOLE ENTRY.
+                        00067         ;
+                        00068         ;   EACH FILE IS ONE SECTOR LONG. ITS LOCATION IN THE
+                        00069         ;   DISK IS DERIVED FROM ITS POSITION IN THE DIRECTORY.
+                        00070         ;
+                        00071         ;   THE 1ST FILE IS LOCATED AT TRACK 1, SIDE 0, SECTOR 1.
+                        00072         ;   THE 2ND FILE IS LOCATED AT TRACK 2, SIDE 0, SECTOR 1.
+                        00073         ;   THE 32ND FILE IS LOCATED AT TRACK 32, SIDE 0, SECTOR 1.
+                        00074         ;
+                        00075         ;
+                        00076         ; STARTING BOOTOS:
+                        00077         ;
+                        00078         ;   JUST MAKE SURE TO WRITE IT AT THE BOOT SECTOR OF A
+                        00079         ;   FLOPPY DISK. IT CAN WORK WITH ANY FLOPPY DISK SIZE
+                        00080         ;   (360K, 720K, 1.2MB AND 1.44MB) AND IT WILL WASTE THE
+                        00081         ;   DISK SPACE AS ONLY USES THE FIRST TWO SECTORS OF THE
+                        00082         ;   DISK AND THEN THE FIRST SECTOR OF EACH FOLLOWING
+                        00083         ;   TRACK.
+                        00084         ;
+                        00085         ;   FOR EMULATION MAKE SURE TO DEPOSIT IT AT THE START
+                        00086         ;   OF A .IMG FILE OF 360K, 720K OR 1440K. (AT LEAST
+                        00087         ;   VIRTUALBOX DETECTS THE TYPE OF DISK BY THE LENGTH
+                        00088         ;   OF THE IMAGE FILE)
+                        00089         ;
+                        00090         ;   FOR MAC OS X AND LINUX YOU CAN CREATE A 360K IMAGE
+                        00091         ;   IN THIS WAY:
+                        00092         ; 
+                        00093         ;     DD IF=/DEV/ZERO OF=OSZERO.IMG COUNT=719 BS=512
+                        00094         ;     CAT OS.IMG OSZERO.IMG >OSBASE.IMG
+                        00095         ; 
+                        00096         ;   REPLACE 719 WITH 1439 FOR 720K, OR 2879 FOR 1.44M.
+                        00097         ; 
+                        00098         ;   TESTED WITH VIRTUALBOX FOR MAC OS X RUNNING WINDOWS XP
+                        00099         ;   RUNNING IT, IT ALSO WORKS WITH QEMU:
+                        00100         ; 
+                        00101         ;     QEMU-SYSTEM-X86_64 -FDA OS.IMG
+                        00102         ; 
+                        00103         ; RUNNING BOOTOS:
+                        00104         ;
+                        00105         ;   THE FIRST TIME YOU SHOULD ENTER THE 'format' COMMAND,
+                        00106         ;   SO IT INITIALIZES THE DIRECTORY. IT ALSO COPIES ITSELF
+                        00107         ;   AGAIN TO THE BOOT SECTOR, THIS IS USEFUL TO INIT NEW
+                        00108         ;   DISKS.
+                        00109         ;
+                        00110         ; BOOTOS COMMANDS:
+                        00111         ;
+                        00112         ;   VER           SHOWS THE VERSION (NONE AT THE MOMENT)
+                        00113         ;   DIR           SHOWS THE DIRECTORY's content.
+
+                        00114         ;   DEL FILENAME  DELETES THE "filename" FILE.
+                        00115         ;   FORMAT        AS EXPLAINED BEFORE.
+                        00116         ;   ENTER         ALLOWS TO ENTER UP TO 512 HEXADECIMAL
+                        00117         ;                 BYTES TO CREATE ANOTHER FILE.
+                        00118         ;
+                        00119         ;                 NOTICE THE LINE SIZE IS 128 CHARACTERS SO
+                        00120         ;                 YOU MUST BREAK THE INPUT INTO CHUNKS OF
+                        00121         ;                 4, 8 OR 16 BYTES.
+                        00122         ;
+                        00123         ;                 IT ALSO ALLOWS TO COPY THE LAST EXECUTED
+                        00124         ;                 PROGRAM JUST PRESS ENTER WHEN THE 'h' PROMPT
+                        00125         ;                 APPEARS AND TYPE THE NEW NAME.
+                        00126         ;
+                        00127         ; FOR EXAMPLE: (CHARACTER + IS ENTER KEY)
+                        00128         ;   
+                        00129         ;   $ENTER+
+                        00130         ;   HBB 17 7C 8A 07 84 C0 74 0C 53 B4 0E BB 0F 00 CD+
+                        00131         ;   H10 5B 43 EB EE CD 20 48 65 6C 6C 6F 2C 20 77 6F+
+                        00132         ;   H72 6C 64 0D 0A 00+
+                        00133         ;   H+
+                        00134         ;   *HELLO+
+                        00135         ;   $DIR+
+                        00136         ;   HELLO
+                        00137         ;   $HELLO+
+                        00138         ;   HELLO, WORLD
+                        00139         ;   $
+                        00140         ;
+                        00141         ; BOOTOS PROGRAMS: (OH YES! WE HAVE SOFTWARE SUPPORT)
+                        00142         ;
+                        00143         ;   FBIRD         HTTPS://GITHUB.COM/NANOCHESS/FBIRD
+                        00144         ;   PILLMAN       HTTPS://GITHUB.COM/NANOCHESS/PILLMAN
+                        00145         ;   INVADERS      HTTPS://GITHUB.COM/NANOCHESS/INVADERS
+                        00146         ;   BOOTBASIC     HTTPS://GITHUB.COM/NANOCHESS/BOOTBASIC
+                        00147         ;
+                        00148         ; YOU CAN COPY THE MACHINE CODE DIRECTLY USING THE 'enter'
+                        00149         ; COMMAND, OR YOU CAN CREATE A FILE WITH SIGNATURE BYTES
+                        00150         ; WITH THE SAME COMMAND AND LATER COPY THE BINARY INTO THE
+                        00151         ; .IMG FILE USING THE SIGNATURE BYTES AS A CLUE TO LOCATE
+                        00152         ; THE RIGHT POSITION IN THE IMAGE FILE.
+                        00153         ;
+                        00154         ; OR YOU CAN FIND A PRE-DESIGNED DISK IMAGE ALONG THIS GIT
+                        00155         ; WITH THE NAME OSALL.IMG
+                        00156         ;
+                        00157 
+                        00158 STACK:  EQU 0X7700      ; STACK POINTER (GROWS TO LOWER ADDRESSES)
+                        00159 LINE:   EQU 0X7780      ; BUFFER FOR LINE INPUT
+                        00160 SECTOR: EQU 0X7800      ; SECTOR DATA FOR DIRECTORY
+                        00161 OSBASE: EQU 0X7A00      ; BOOTOS LOCATION
+                        00162 BOOT:   EQU 0X7C00      ; BOOT SECTOR LOCATION  
+                        00163 
+                        00164 ENTRY_SIZE:     EQU 16  ; DIRECTORY ENTRY SIZE
+                        00165 SECTOR_SIZE:    EQU 512 ; SECTOR SIZE
+                        00166 MAX_ENTRIES:    EQU SECTOR_SIZE/ENTRY_SIZE
+                        00167 
+                        00168         ;
+                        00169         ; COLD START OF BOOTOS
+                        00170         ;
+                        00171         ; NOTICE IT IS LOADED AT 0X7C00 (BOOT) AND NEEDS TO
+                        00172         ; RELOCATE ITSELF TO 0X7A00 (OSBASE), THE INSTRUCTIONS
+                        00173         ; BETWEEN 'start' AND 'ver_command' SHOULDN't depend
+
+                        00174         ; ON THE ASSEMBLY LOCATION (OSBASE) BECAUSE THESE
+                        00175         ; ARE RUNNING AT BOOT LOCATION (BOOT).
+                        00176         ;
+0006                    00177         ORG OSBASE
+7A00                    00178 START:
+7A00  31C0              00179         XOR AX,AX       ; SET ALL SEGMENTS TO ZERO
+7A02  8ED8              00180         MOV DS,AX
+7A04  8EC0              00181         MOV ES,AX
+7A06  8ED0              00182         MOV SS,AX
+7A08  BC0077            00183         MOV SP,STACK    ; SET STACK TO GUARANTEE DATA SAFETY
+7A08                    00184 
+7A0B  FC                00185         CLD             ; CLEAR D FLAG.
+7A0C  BE007C            00186         MOV SI,BOOT     ; COPY BOOTOS BOOT SECTOR...
+7A0F  BF007A            00187         MOV DI,OSBASE   ; ...INTO OSBASE
+7A12  B90002            00188         MOV CX,SECTOR_SIZE
+7A15  F3A4              00189         REP MOVSB
+7A15                    00190 
+7A17  BEEC7B            00191         MOV SI,INT_0X20 ; SI NOW POINTS TO INT_0X20 
+7A1A  BF8000            00192         MOV DI,0X0020*4 ; ADDRESS OF SERVICE FOR INT 0X20
+7A1D  B106              00193         MOV CL,6
+7A1F                    00194 .LOAD_VEC:
+7A1F  A5                00195         MOVSW           ; COPY IP ADDRESS
+7A20  AB                00196         STOSW           ; COPY CS ADDRESS
+7A21  E2FC              00197         LOOP .LOAD_VEC
+7A21                    00198 
+7A21                    00199         ;
+7A21                    00200         ; 'ver' COMMAND
+7A21                    00201         ;
+7A23                    00202 VER_COMMAND:
+7A23  BEBC7B            00203         MOV SI,INTRO
+7A26  E84601            00204         CALL OUTPUT_STRING
+7A29  CD20              00205         INT INT_RESTART ; RESTART BOOTOS
+7A29                    00206 
+7A29                    00207         ;
+7A29                    00208         ; WARM START OF BOOTOS
+7A29                    00209         ;
+7A2B                    00210 RESTART:
+7A2B  FC                00211         CLD             ; CLEAR D FLAG.
+7A2C  0E                00212         PUSH CS         ; REINIT ALL SEGMENT REGISTERS
+7A2D  0E                00213         PUSH CS
+7A2E  0E                00214         PUSH CS
+7A2F  1F                00215         POP DS
+7A30  07                00216         POP ES
+7A31  17                00217         POP SS
+7A32  BC0077            00218         MOV SP,STACK    ; RESTART STACK
+7A32                    00219 
+7A35  B024              00220         MOV AL,'$'      ; COMMAND PROMPT
+7A37  E80601            00221         CALL INPUT_LINE ; INPUT LINE
+7A37                    00222 
+7A3A  803C00            00223         CMP BYTE [SI],0X00  ; EMPTY LINE?
+7A3D  74EC              00224         JE RESTART          ; YES, GET ANOTHER LINE
+7A3D                    00225 
+7A3F  BFC87B            00226         MOV DI,COMMANDS ; POINT TO COMMANDS LIST
+7A3F                    00227 
+7A3F                    00228         ; NOTICE THAT FILENAMES STARTING WITH SAME CHARACTERS
+7A3F                    00229         ; WON't be recognized as such (so file dirab cannot be
+
+7A3F                    00230         ; EXECUTED).
+7A42                    00231 OS11:
+7A42  8A05              00232         MOV AL,[DI]     ; READ LENGTH OF COMMAND IN CHARS
+7A44  47                00233         INC DI
+7A45  25FF00            00234         AND AX,0X00FF   ; IS IT ZERO?
+7A48  7411              00235         JE OS12         ; YES, JUMP
+7A4A  91                00236         XCHG AX,CX
+7A4B  56                00237         PUSH SI         ; SAVE CURRENT POSITION
+7A4C  F3A6              00238         REP CMPSB       ; COMPARE STATEMENT
+7A4E  7504              00239         JNE OS14        ; EQUAL? NO, JUMP
+7A50  FF15              00240         CALL WORD [DI]  ; CALL COMMAND PROCESS
+7A52  EBD7              00241         JMP RESTART     ; GO TO EXPECT ANOTHER COMMAND
+7A52                    00242 
+7A54  01CF              00243 OS14:   ADD DI,CX       ; ADVANCE THE LIST POINTER
+7A56  47                00244         INC DI          ; AVOID THE ADDRESS
+7A57  47                00245         INC DI
+7A58  5E                00246         POP SI
+7A59  EBE7              00247         JMP OS11        ; COMPARE ANOTHER STATEMENT
+7A59                    00248 
+7A5B  89F3              00249 OS12:   MOV BX,SI       ; INPUT POINTER
+7A5D  BF007C            00250         MOV DI,BOOT     ; LOCATION TO READ DATA
+7A60  CD23              00251         INT INT_LOAD_FILE       ; LOAD FILE
+7A62  7202              00252         JC OS7          ; JUMP IF ERROR
+7A64  FFE3              00253         JMP BX
+7A64                    00254 
+7A64                    00255         ;
+7A64                    00256         ; FILE NOT FOUND ERROR
+7A64                    00257         ;
+7A66                    00258 OS7:
+7A66  BEC37B            00259         MOV SI,ERROR_MESSAGE
+7A69  E80301            00260         CALL OUTPUT_STRING
+7A6C  CD20              00261         INT INT_RESTART ; GO TO EXPECT ANOTHER COMMAND
+7A6C                    00262 
+7A6C                    00263         ;
+7A6C                    00264         ; >> COMMAND <<
+7A6C                    00265         ; DEL FILENAME
+7A6C                    00266         ;
+7A6E                    00267 DEL_COMMAND:
+7A6E                    00268 OS22:
+7A6E  89F3              00269         MOV BX,SI       ; COPY SI (BUFFER POINTER) TO BX
+7A70  AC                00270         LODSB
+7A71  3C20              00271         CMP AL,0X20     ; AVOID SPACES
+7A73  74F9              00272         JE OS22
+7A75  CD25              00273         INT INT_DELETE_FILE
+7A77  72ED              00274         JC OS7
+7A79  C3                00275         RET
+7A79                    00276 
+7A79                    00277         ;
+7A79                    00278         ; 'dir' COMMAND
+7A79                    00279         ;
+7A7A                    00280 DIR_COMMAND:
+7A7A  E8A000            00281         CALL READ_DIR           ; READ THE DIRECTORY
+7A7D  89DF              00282         MOV DI,BX
+7A7F                    00283 OS18:
+7A7F  803D00            00284         CMP BYTE [DI],0         ; EMPTY ENTRY?
+7A82  7405              00285         JE OS17                 ; YES, JUMP
+7A84  89FE              00286         MOV SI,DI               ; POINT TO DATA
+7A86  E8E600            00287         CALL OUTPUT_STRING      ; SHOW NAME
+7A89  E86E00            00288 OS17:   CALL NEXT_ENTRY
+7A8C  75F1              00289         JNE OS18                ; NO, JUMP
+7A8E  C3                00290         RET                     ; RETURN
+7A8E                    00291 
+7A8E                    00292         ;
+7A8E                    00293         ; GET FILENAME LENGTH AND PREPARE FOR DIRECTORY LOOKUP
+7A8E                    00294         ; ENTRY:
+7A8E                    00295         ;   SI = POINTER TO STRING
+7A8E                    00296         ; OUTPUT:
+7A8E                    00297         ;   SI = UNAFFECTED
+7A8E                    00298         ;   DI = POINTER TO START OF DIRECTORY
+7A8E                    00299         ;   CX = LENGTH OF FILENAME INCLUDING ZERO TERMINATOR
+7A8E                    00300         ;
+7A8F                    00301 FILENAME_LENGTH:
+7A8F  56                00302         PUSH SI
+7A90  31C9              00303         XOR CX,CX       ; CX = 0
+7A92                    00304 .LOOP:
+7A92  AC                00305         LODSB           ; READ CHARACTER.
+7A93  41                00306         INC CX          ; COUNT CHARACTER.
+7A94  3C00              00307         CMP AL,0        ; IS IT ZERO (END CHARACTER)?
+7A96  75FA              00308         JNE .LOOP       ; NO, JUMP.
+7A96                    00309 
+7A98  5E                00310         POP SI
+7A99  BF0078            00311         MOV DI,SECTOR   ; POINT TO START OF DIRECTORY.
+7A9C  C3                00312         RET
+7A9C                    00313         
+7A9C                    00314         ;
+7A9C                    00315         ; >> SERVICE <<
+7A9C                    00316         ; LOAD FILE
+7A9C                    00317         ;
+7A9C                    00318         ; ENTRY:
+7A9C                    00319         ;   DS:BX = POINTER TO FILENAME ENDED WITH ZERO BYTE.
+7A9C                    00320         ;   ES:DI = DESTINATION.
+7A9C                    00321         ; OUTPUT:
+7A9C                    00322         ;   CARRY FLAG = SET = NOT FOUND, CLEAR = SUCCESSFUL.
+7A9C                    00323         ;
+7A9D                    00324 LOAD_FILE:
+7A9D  57                00325         PUSH DI         ; SAVE DESTINATION
+7A9E  06                00326         PUSH ES
+7A9F  E84000            00327         CALL FIND_FILE  ; FIND THE FILE (SANITIZES ES)
+7AA2  B402              00328         MOV AH,0X02     ; READ SECTOR
+7AA4                    00329 SHARED_FILE:
+7AA4  07                00330         POP ES
+7AA5  5B                00331         POP BX          ; RESTORE DESTINATION ON BX
+7AA6  7203              00332         JC RET_CF       ; JUMP IF ERROR
+7AA8  E88400            00333         CALL DISK       ; DO OPERATION WITH DISK
+7AA8                    00334                         ; CARRY GUARANTEED TO BE CLEAR.
+7AAB                    00335 RET_CF:
+7AAB  89E5              00336         MOV BP,SP
+7AAD  D05604            00337         RCL BYTE [BP+4],1       ; INSERT CARRY FLAG IN FLAGS (AUTOMATIC USAGE OF SS)
+7AB0  CF                00338         IRET
+7AB0                    00339 
+7AB0                    00340         ;
+7AB0                    00341         ; >> SERVICE <<
+7AB0                    00342         ; SAVE FILE
+7AB0                    00343         ;
+7AB0                    00344         ; ENTRY:
+7AB0                    00345         ;   DS:BX = POINTER TO FILENAME ENDED WITH ZERO BYTE.
+7AB0                    00346         ;   ES:DI = SOURCE.
+7AB0                    00347         ; OUTPUT:
+7AB0                    00348         ;   CARRY FLAG = SET = ERROR, CLEAR = GOOD.
+7AB0                    00349         ;
+7AB1                    00350 SAVE_FILE:
+7AB1  57                00351         PUSH DI                 ; SAVE ORIGIN
+7AB2  06                00352         PUSH ES
+7AB3  53                00353         PUSH BX                 ; SAVE FILENAME POINTER
+7AB4  CD25              00354         INT INT_DELETE_FILE     ; DELETE PREVIOUS FILE (SANITIZES ES)
+7AB6  5B                00355         POP BX                  ; RESTORE FILENAME POINTER
+7AB7  E8D5FF            00356         CALL FILENAME_LENGTH    ; PREPARE FOR LOOKUP
+7AB7                    00357 
+7ABA  26803D00          00358 .FIND:  ES CMP BYTE [DI],0      ; FOUND EMPTY DIRECTORY ENTRY?
+7ABE  7407              00359         JE .EMPTY               ; YES, JUMP AND FILL IT.
+7AC0  E83700            00360         CALL NEXT_ENTRY
+7AC3  75F5              00361         JNE .FIND
+7AC5  EBDD              00362         JMP SHARED_FILE
+7AC5                    00363 
+7AC7  57                00364 .EMPTY: PUSH DI
+7AC8  F3A4              00365         REP MOVSB               ; COPY FULL NAME INTO DIRECTORY
+7ACA  E85A00            00366         CALL WRITE_DIR          ; SAVE DIRECTORY
+7ACD  5F                00367         POP DI
+7ACE  E83200            00368         CALL GET_LOCATION       ; GET LOCATION OF FILE
+7AD1  B403              00369         MOV AH,0X03             ; WRITE SECTOR
+7AD3  EBCF              00370         JMP SHARED_FILE
+7AD3                    00371 
+7AD3                    00372         ;
+7AD3                    00373         ; >> SERVICE <<
+7AD3                    00374         ; DELETE FILE
+7AD3                    00375         ;
+7AD3                    00376         ; ENTRY:
+7AD3                    00377         ;   DS:BX = POINTER TO FILENAME ENDED WITH ZERO BYTE.
+7AD3                    00378         ; OUTPUT:
+7AD3                    00379         ;   CARRY FLAG = SET = NOT FOUND, CLEAR = DELETED.
+7AD3                    00380         ;
+7AD5                    00381 DELETE_FILE:
+7AD5  E80A00            00382         CALL FIND_FILE          ; FIND FILE (SANITIZES ES)
+7AD8  72D1              00383         JC RET_CF               ; IF CARRY SET THEN NOT FOUND, JUMP.
+7ADA  B91000            00384         MOV CX,ENTRY_SIZE
+7ADD  E84300            00385         CALL WRITE_ZERO_DIR     ; FILL WHOLE ENTRY WITH ZERO. WRITE DIRECTORY.
+7AE0  EBC9              00386         JMP RET_CF
+7AE0                    00387 
+7AE0                    00388         ;
+7AE0                    00389         ; FIND FILE
+7AE0                    00390         ;
+7AE0                    00391         ; ENTRY:
+7AE0                    00392         ;   DS:BX = POINTER TO FILENAME ENDED WITH ZERO BYTE.
+7AE0                    00393         ; RESULT:
+7AE0                    00394         ;   ES:DI = POINTER TO DIRECTORY ENTRY
+7AE0                    00395         ;   CARRY FLAG = CLEAR IF FOUND, SET IF NOT FOUND.
+7AE2                    00396 FIND_FILE:
+7AE2  53                00397         PUSH BX
+7AE3  E83700            00398         CALL READ_DIR   ; READ DIRECTORY (SANITIZES ES)
+7AE6  5E                00399         POP SI
+7AE7  E8A5FF            00400         CALL FILENAME_LENGTH    ; GET FILENAME LENGTH AND SETUP DI
+7AEA                    00401 OS6:
+7AEA  56                00402         PUSH SI
+7AEB  57                00403         PUSH DI
+7AEC  51                00404         PUSH CX
+7AED  F3A6              00405         REPE CMPSB      ; COMPARE NAME WITH ENTRY
+7AEF  59                00406         POP CX
+7AF0  5F                00407         POP DI
+7AF1  5E                00408         POP SI
+7AF2  740F              00409         JE GET_LOCATION ; JUMP IF EQUAL.
+7AF4  E80300            00410         CALL NEXT_ENTRY
+7AF7  75F1              00411         JNE OS6         ; NO, JUMP
+7AF9  C3                00412         RET             ; RETURN
+7AF9                    00413 
+7AFA                    00414 NEXT_ENTRY:
+7AFA  83C710            00415         ADD DI,BYTE ENTRY_SIZE          ; GO TO NEXT ENTRY.
+7AFD  81FF007A          00416         CMP DI,SECTOR+SECTOR_SIZE       ; COMPLETE DIRECTORY?
+7B01  F9                00417         STC                             ; ERROR, NOT FOUND.
+7B02  C3                00418         RET
+7B02                    00419 
+7B02                    00420         ;
+7B02                    00421         ; GET LOCATION OF FILE ON DISK
+7B02                    00422         ;
+7B02                    00423         ; ENTRY:
+7B02                    00424         ;   DI = POINTER TO ENTRY IN DIRECTORY.
+7B02                    00425         ;
+7B02                    00426         ; RESULT
+7B02                    00427         ;   CH = TRACK NUMBER IN DISK.
+7B02                    00428         ;   CL = SECTOR (ALWAYS 0X01).
+7B02                    00429         ;
+7B02                    00430         ; THE POSITION OF A FILE INSIDE THE DISK DEPENDS ON ITS
+7B02                    00431         ; POSITION IN THE DIRECTORY. THE FIRST ENTRY GOES TO
+7B02                    00432         ; TRACK 1, THE SECOND ENTRY TO TRACK 2 AND SO.
+7B02                    00433         ;
+7B03                    00434 GET_LOCATION:
+7B03  8D851088          00435         LEA AX,[DI-(SECTOR-ENTRY_SIZE)] ; GET ENTRY POINTER INTO DIRECTORY
+7B03                    00436                         ; PLUS ONE ENTRY (FILES START ON TRACK 1)
+7B07  B104              00437         MOV CL,4        ; 2^(8-4) = ENTRY_SIZE
+7B09  D3E0              00438         SHL AX,CL       ; SHIFT LEFT AND CLEAR CARRY FLAG
+7B0B  40                00439         INC AX          ; AL = SECTOR 1
+7B0C  91                00440         XCHG AX,CX      ; CH = TRACK, CL = SECTOR
+7B0D  C3                00441         RET
+7B0D                    00442 
+7B0D                    00443         ;
+7B0D                    00444         ; >> COMMAND <<
+7B0D                    00445         ; FORMAT
+7B0D                    00446         ;
+7B0E                    00447 FORMAT_COMMAND:
+7B0E  BF0078            00448         MOV DI,SECTOR   ; FILL WHOLE SECTOR TO ZERO
+7B11  B90002            00449         MOV CX,SECTOR_SIZE
+7B14  E80C00            00450         CALL WRITE_ZERO_DIR
+7B17  BB007A            00451         MOV BX,OSBASE   ; COPY BOOTOS ONTO FIRST SECTOR
+7B1A  49                00452         DEC CX
+7B1B  EB12              00453         JMP SHORT DISK
+7B1B                    00454 
+7B1B                    00455         ;
+7B1B                    00456         ; READ THE DIRECTORY FROM DISK
+7B1B                    00457         ;
+7B1D                    00458 READ_DIR:
+7B1D  0E                00459         PUSH CS         ; BOOTOS CODE SEGMENT...
+7B1E  07                00460         POP ES          ; ...TO SANITIZE ES REGISTER
+7B1F  B402              00461         MOV AH,0X02
+7B21  EB06              00462         JMP SHORT DISK_DIR
+7B21                    00463 
+7B23                    00464 WRITE_ZERO_DIR:
+7B23  B000              00465         MOV AL,0
+7B25  F3AA              00466         REP STOSB
+7B25                    00467 
+7B25                    00468         ;
+7B25                    00469         ; WRITE THE DIRECTORY TO DISK
+7B25                    00470         ;
+7B27                    00471 WRITE_DIR:
+7B27  B403              00472         MOV AH,0X03
+7B29                    00473 DISK_DIR:
+7B29  BB0078            00474         MOV BX,SECTOR
+7B2C  B90200            00475         MOV CX,0X0002
+7B2C                    00476         ;
+7B2C                    00477         ; DO DISK OPERATION.
+7B2C                    00478         ;
+7B2C                    00479         ; INPUT:
+7B2C                    00480         ;   AH = 0X02 READ DISK, 0X03 WRITE DISK
+7B2C                    00481         ;   ES:BX = DATA SOURCE/TARGET
+7B2C                    00482         ;   CH = TRACK NUMBER
+7B2C                    00483         ;   CL = SECTOR NUMBER
+7B2C                    00484         ;
+7B2F                    00485 DISK:
+7B2F  50                00486         PUSH AX
+7B30  53                00487         PUSH BX
+7B31  51                00488         PUSH CX
+7B32  06                00489         PUSH ES
+7B33  B001              00490         MOV AL,0X01     ; AL = 1 SECTOR
+7B35  31D2              00491         XOR DX,DX       ; DH = DRIVE A. DL = HEAD 0.
+7B37  CD13              00492         INT 0X13
+7B39  07                00493         POP ES
+7B3A  59                00494         POP CX
+7B3B  5B                00495         POP BX
+7B3C  58                00496         POP AX
+7B3D  72F0              00497         JC DISK         ; RETRY
+7B3F  C3                00498         RET
+7B3F                    00499 
+7B3F                    00500         ;
+7B3F                    00501         ; INPUT LINE FROM KEYBOARD
+7B3F                    00502         ; ENTRY:
+7B3F                    00503         ;   AL = PROMPT CHARACTER
+7B3F                    00504         ; RESULT:
+7B3F                    00505         ;   BUFFER 'line' CONTAINS LINE, FINISHED WITH CR
+7B3F                    00506         ;   SI POINTS TO 'line'.
+7B3F                    00507         ;
+7B40                    00508 INPUT_LINE:
+7B40  CD22              00509         INT INT_OUTPUT_CHAR ; OUTPUT PROMPT CHARACTER
+7B42  BE8077            00510         MOV SI,LINE     ; SETUP SI AND DI TO START OF LINE BUFFER
+7B45  89F7              00511         MOV DI,SI       ; TARGET FOR WRITING LINE
+7B47  3C08              00512 OS1:    CMP AL,0X08     ; BACKSPACE?
+7B49  7502              00513         JNE OS2
+7B4B  4F                00514         DEC DI          ; UNDO THE BACKSPACE WRITE
+7B4C  4F                00515         DEC DI          ; ERASE A CHARACTER
+7B4D  CD21              00516 OS2:    INT INT_INPUT_KEY  ; READ KEYBOARD
+7B4F  3C0D              00517         CMP AL,0X0D     ; CR PRESSED?
+7B51  7502              00518         JNE OS10
+7B53  B000              00519         MOV AL,0X00
+7B55  AA                00520 OS10:   STOSB           ; SAVE KEY IN BUFFER
+7B56  75EF              00521         JNE OS1         ; NO, WAIT ANOTHER KEY
+7B58  C3                00522         RET             ; YES, RETURN
+7B58                    00523 
+7B58                    00524         ;
+7B58                    00525         ; READ A KEY INTO AL
+7B58                    00526         ; ALSO OUTPUTS IT TO SCREEN
+7B58                    00527         ;
+7B59                    00528 INPUT_KEY:
+7B59  B400              00529         MOV AH,0X00
+7B5B  CD16              00530         INT 0X16
+7B5B                    00531         ;
+7B5B                    00532         ; SCREEN OUTPUT OF CHARACTER CONTAINED IN AL
+7B5B                    00533         ; EXPANDS 0X0D (CR) INTO 0X0A 0X0D (LF CR)
+7B5B                    00534         ;
+7B5D                    00535 OUTPUT_CHAR:
+7B5D  3C0D              00536         CMP AL,0X0D
+7B5F  7506              00537         JNE OS3
+7B61  B00A              00538         MOV AL,0X0A
+7B63  CD22              00539         INT INT_OUTPUT_CHAR
+7B65  B00D              00540         MOV AL,0X0D
+7B67                    00541 OS3:
+7B67  B40E              00542         MOV AH,0X0E     ; OUTPUT CHARACTER TO TTY
+7B69  BB0700            00543         MOV BX,0X0007   ; GRAY. REQUIRED FOR GRAPHIC MODES
+7B6C  CD10              00544         INT 0X10        ; BIOS INT 0X10 = VIDEO
+7B6E  CF                00545         IRET
+7B6E                    00546 
+7B6E                    00547         ;
+7B6E                    00548         ; OUTPUT STRING
+7B6E                    00549         ;
+7B6E                    00550         ; ENTRY:
+7B6E                    00551         ;   SI = ADDRESS
+7B6E                    00552         ;
+7B6E                    00553         ; IMPLEMENTATION:
+7B6E                    00554         ;   IT SUPPOSES THAT SI NEVER POINTS TO A ZERO LENGTH STRING.
+7B6E                    00555         ;
+7B6F                    00556 OUTPUT_STRING:
+7B6F  AC                00557         LODSB                   ; READ CHARACTER
+7B70  CD22              00558         INT INT_OUTPUT_CHAR     ; OUTPUT TO SCREEN
+7B72  3C00              00559         CMP AL,0X00             ; IS IT 0X00 (TERMINATOR)?
+7B74  75F9              00560         JNE OUTPUT_STRING       ; NO, THE LOOP CONTINUES
+7B76  B00D              00561         MOV AL,0X0D
+7B78  CD22              00562         INT INT_OUTPUT_CHAR
+7B7A  C3                00563         RET
+7B7A                    00564 
+7B7A                    00565         ;
+7B7A                    00566         ; 'enter' COMMAND
+7B7A                    00567         ;
+7B7B                    00568 ENTER_COMMAND:
+7B7B  BF007C            00569         MOV DI,BOOT             ; POINT TO BOOT SECTOR
+7B7E  57                00570 OS23:   PUSH DI
+7B7F  B068              00571         MOV AL,'h'              ; PROMPT CHARACTER
+7B81  E8BCFF            00572         CALL INPUT_LINE         ; INPUT LINE
+7B84  5F                00573         POP DI
+7B85  803C00            00574         CMP BYTE [SI],0         ; EMPTY LINE?
+7B88  7412              00575         JE OS20                 ; YES, JUMP
+7B8A  E81C00            00576 OS19:   CALL XDIGIT             ; GET A HEXADECIMAL DIGIT
+7B8D  73EF              00577         JNC OS23
+7B8F  B104              00578         MOV CL,4
+7B91  D2E0              00579         SHL AL,CL
+7B93  91                00580         XCHG AX,CX
+7B94  E81200            00581         CALL XDIGIT             ; GET A HEXADECIMAL DIGIT
+7B97  08C8              00582         OR AL,CL
+7B99  AA                00583         STOSB                   ; WRITE ONE BYTE
+7B9A  EBEE              00584         JMP OS19                ; REPEAT LOOP TO COMPLETE LINE
+7B9C                    00585 OS20:        
+7B9C  B02A              00586         MOV AL,'*'              ; PROMPT CHARACTER
+7B9E  E89FFF            00587         CALL INPUT_LINE         ; INPUT LINE WITH FILENAME
+7BA1  56                00588         PUSH SI
+7BA2  5B                00589         POP BX
+7BA3  BF007C            00590         MOV DI,BOOT             ; POINT TO DATA ENTERED
+7BA6  CD24              00591         INT INT_SAVE_FILE       ; SAVE NEW FILE
+7BA8  C3                00592         RET
+7BA8                    00593 
+7BA8                    00594         ;
+7BA8                    00595         ; CONVERT ASCII LETTER TO HEXADECIMAL DIGIT
+7BA8                    00596         ;
+7BA9                    00597 XDIGIT:
+7BA9  AC                00598         LODSB
+7BAA  3C00              00599         CMP AL,0X00             ; ZERO CHARACTER MARKS END OF LINE
+7BAC  740D              00600         JE OS15
+7BAE  2C30              00601         SUB AL,0X30             ; AVOID SPACES (ANYTHING BELOW ASCII 0X30)
+7BB0  72F7              00602         JC XDIGIT
+7BB2  3C0A              00603         CMP AL,0X0A
+7BB4  7205              00604         JC OS15
+7BB6  2C07              00605         SUB AL,0X07
+7BB8  240F              00606         AND AL,0X0F
+7BBA  F9                00607         STC
+7BBB                    00608 OS15:
+7BBB  C3                00609         RET
+7BBB                    00610 
+7BBB                    00611         ;
+7BBB                    00612         ; OUR AMAZING PRESENTATION LINE
+7BBB                    00613         ;
+7BBC                    00614 INTRO:
+7BBC  626F6F744F5300    00615         DB "bootOS",0
+7BBC                    00616 
+7BC3                    00617 ERROR_MESSAGE:
+7BC3  4F6F707300        00618         DB "Oops",0
+7BC3                    00619 
+7BC3                    00620         ;
+7BC3                    00621         ; COMMANDS SUPPORTED BY BOOTOS
+7BC3                    00622         ;
+7BC8                    00623 COMMANDS:
+7BC8  03646972          00624         DB 3,"dir"
+7BCC  7A7A              00625         DW DIR_COMMAND
+7BCE  06666F726D6174    00626         DB 6,"format"
+7BD5  0E7B              00627         DW FORMAT_COMMAND
+7BD7  05656E746572      00628         DB 5,"enter"
+7BDD  7B7B              00629         DW ENTER_COMMAND
+7BDF  0364656C          00630         DB 3,"del"
+7BE3  6E7A              00631         DW DEL_COMMAND
+7BE5  03766572          00632         DB 3,"ver"
+7BE9  237A              00633         DW VER_COMMAND
+7BEB  00                00634         DB 0
+7BEB                    00635 
+7BEB                    00636 INT_RESTART:            EQU 0X20
+7BEB                    00637 INT_INPUT_KEY:          EQU 0X21
+7BEB                    00638 INT_OUTPUT_CHAR:        EQU 0X22
+7BEB                    00639 INT_LOAD_FILE:          EQU 0X23
+7BEB                    00640 INT_SAVE_FILE:          EQU 0X24
+7BEB                    00641 INT_DELETE_FILE:        EQU 0X25
+7BEB                    00642 
+7BEC                    00643 INT_0X20:
+7BEC  2B7A              00644         DW RESTART          ; INT 0X20
+7BEE  597B              00645         DW INPUT_KEY        ; INT 0X21
+7BF0  5D7B              00646         DW OUTPUT_CHAR      ; INT 0X22
+7BF2  9D7A              00647         DW LOAD_FILE        ; INT 0X23
+7BF4  B17A              00648         DW SAVE_FILE        ; INT 0X24
+7BF6  D57A              00649         DW DELETE_FILE      ; INT 0X25
+7BF6                    00650 
+7BF8  4F4F4F4F4F4F      00651         TIMES 510-($-$$) DB 0X4F
+7BFE  55AA              00652         DB 0X55,0XAA            ; MAKE IT A BOOTABLE SECTOR
+
+00000 ERRORS FOUND
+00000 WARNINGS FOUND
+
+00512 PROGRAM BYTES
+
+LABEL                VALUE/ADDRESS
+
+INT_0X20             7bec
+INT_DELETE_FILE      0025
+INT_SAVE_FILE        0024
+INT_LOAD_FILE        0023
+INT_OUTPUT_CHAR      0022
+INT_INPUT_KEY        0021
+INT_RESTART          0020
+COMMANDS             7bc8
+ERROR_MESSAGE        7bc3
+INTRO                7bbc
+OS15                 7bbb
+XDIGIT               7ba9
+OS20                 7b9c
+OS19                 7b8a
+OS23                 7b7e
+ENTER_COMMAND        7b7b
+OUTPUT_STRING        7b6f
+OS3                  7b67
+OUTPUT_CHAR          7b5d
+INPUT_KEY            7b59
+OS10                 7b55
+OS2                  7b4d
+OS1                  7b47
+INPUT_LINE           7b40
+DISK                 7b2f
+DISK_DIR             7b29
+WRITE_DIR            7b27
+WRITE_ZERO_DIR       7b23
+READ_DIR             7b1d
+FORMAT_COMMAND       7b0e
+GET_LOCATION         7b03
+NEXT_ENTRY           7afa
+OS6                  7aea
+FIND_FILE            7ae2
+DELETE_FILE          7ad5
+SAVE_FILE.EMPTY      7ac7
+SAVE_FILE.FIND       7aba
+SAVE_FILE            7ab1
+RET_CF               7aab
+SHARED_FILE          7aa4
+LOAD_FILE            7a9d
+FILENAME_LENGTH.LOOP 7a92
+FILENAME_LENGTH      7a8f
+OS17                 7a89
+OS18                 7a7f
+DIR_COMMAND          7a7a
+OS22                 7a6e
+DEL_COMMAND          7a6e
+OS7                  7a66
+OS12                 7a5b
+OS14                 7a54
+OS11                 7a42
+RESTART              7a2b
+VER_COMMAND          7a23
+START.LOAD_VEC       7a1f
+START                7a00
+MAX_ENTRIES          0020
+SECTOR_SIZE          0200
+ENTRY_SIZE           0010
+BOOT                 7c00
+OSBASE               7a00
+SECTOR               7800
+LINE                 7780
+STACK                7700

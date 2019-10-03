@@ -1084,6 +1084,7 @@ void process_instruction()
                 p++;
                 while (*p && *p != '"') {
                     p = read_character(p, &c);
+                    emit_byte(c);
                 }
                 if (*p) {
                     p++;
@@ -1188,14 +1189,17 @@ void do_assembly()
         p = line;
         c = 0;
         while (*p) {
-            if (*p == '"' && *(p - 1) != '\\')
-                c = !c;
-            if (c == 0) {
-                *p = toupper(*p);
+            if (*p == '\'' && *(p - 1) != '\\') {
                 p++;
-            } else {
+                while (*p && *p != '\'' && *(p - 1) != '\\')
+                    p++;
+            } else if (*p == '"' && *(p - 1) != '\\') {
                 p++;
+                while (*p && *p != '"' && *(p - 1) != '\\')
+                    p++;
             }
+            *p = toupper(*p);
+            p++;
         }
         if (p > line && *(p - 1) == '\n')
             p--;
