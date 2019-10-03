@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <ctype.h>
 
+#define DEBUG
+
 char *input_filename;
 FILE *input;
 int line_number;
@@ -17,7 +19,8 @@ char *output_filename;
 FILE *output;
 
 int assembler_step;
-int position;
+int start_address;
+int address;
 
 int instruction_addressing;
 int instruction_offset;
@@ -34,6 +37,7 @@ char line[MAX_SIZE];
 char part[MAX_SIZE];
 char name[MAX_SIZE];
 char undefined_name[MAX_SIZE];
+char *prev_p;
 char *p;
 
 int errors;
@@ -244,6 +248,15 @@ char *match_addressing(p, width)
 }
 
 /*
+ **
+ */
+int islabel(c)
+    int c;
+{
+    return isalpha(c) || isdigit(c) || c == '_' || c == '.';
+}
+
+/*
  ** Match register
  */
 char *match_register(p, width, value)
@@ -255,8 +268,10 @@ char *match_register(p, width, value)
     int c;
     
     p = avoid_spaces(p);
-    reg[0] = toupper(p[0]);
-    reg[1] = toupper(p[1]);
+    if (!isalpha(p[0]) || !isalpha(p[1]) || islabel(p[2]))
+        return NULL;
+    reg[0] = p[0];
+    reg[1] = p[1];
     reg[2] = '\0';
     if (width == 8) {
         for (c = 0; c < 8; c++)
@@ -444,7 +459,7 @@ char *match_expression_level5(p, value)
                     fprintf(stderr, "Error: division by zero\n");
                 *value = 1;
             }
-            *value = value1 / *value;
+            *value = (unsigned) value1 / *value;
         } else if (*p == '%') {
             p++;
             value1 = *value;
@@ -553,10 +568,20 @@ char *match_expression_level6(p, value)
         *value = number;
         return p;
     }
+    if (*p == '$' && p[1] == '$') { /* Start address */
+        p += 2;
+        *value = start_address;
+        return p;
+    }
+    if (*p == '$') { /* Current address */
+        p++;
+        *value = address;
+        return p;
+    }
     if (isalpha(*p) || *p == '_') { /* Label */
         p2 = name;
         while (isalpha(*p) || isdigit(*p) || *p == '_')
-            *p2++ = toupper(*p++);
+            *p2++ = *p++;
         *p2 = '\0';
         for (c = 0; c < 16; c++)
             if (strcmp(name, reg1[c]) == 0)
@@ -586,7 +611,7 @@ void emit_byte(int byte)
         /* Cannot use fputc because DeSmet C expands to CR LF */
         fwrite(buf, 1, 1, output);
     }
-    position++;
+    address++;
 }
 
 /*
@@ -701,7 +726,7 @@ char *match(p, pattern, decode)
                     if (p2 == NULL)
                         return NULL;
                     if (qualifier == 0) {
-                        c = instruction_value - (position + 2);
+                        c = instruction_value - (address + 2);
                         if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)
                             return NULL;
                     }
@@ -842,13 +867,13 @@ char *match(p, pattern, decode)
                     } else if (decode[0] == 'a') {
                         if (decode[1] == '8') {
                             decode += 2;
-                            c = instruction_value - (position + 1);
+                            c = instruction_value - (address + 1);
                             if (assembler_step == 2 && (c < -128 || c > 127))
                                 fprintf(stderr, "Error: short jump too long at line %d\n", line_number);
                             break;
                         } else {
                             decode += 3;
-                            c = instruction_value - (position + 2);
+                            c = instruction_value - (address + 2);
                             instruction_offset = c >> 8;
                             instruction_offset_width = 1;
                             d = 1;
@@ -911,6 +936,7 @@ void separate(void)
     
     while (*p && isspace(*p))
         p++;
+    prev_p = p;
     p2 = part;
     while (*p && !isspace(*p) && *p != ';')
         *p2++ = *p++;
@@ -931,6 +957,148 @@ void check_end(p)
 }
 
 /*
+ ** Generate a message
+ */
+void message(error, message)
+    int error;
+    char *message;
+{
+    if (error)
+        fprintf(stderr, "Error: %s at line %d\n", message, line_number);
+    else
+        fprintf(stderr, "Warning: %s at line %d\n", message, line_number);
+}
+
+/*
+ ** Process an instruction
+ */
+void process_instruction()
+{
+    char *p2;
+    char *p3;
+    int c;
+    
+    if (strcmp(part, "DB") == 0) {
+        while (1) {
+            p = avoid_spaces(p);
+            if (*p == '"') {    /* ASCII text */
+                p++;
+                while (*p && *p != '"') {
+                    if (*p == '\\') {
+                        p++;
+                        if (*p == '\'') {
+                            emit_byte('\'');
+                        } else if (*p == '\"') {
+                            emit_byte('"');
+                        } else if (*p == '\\') {
+                            emit_byte('\\');
+                        } else if (*p == 'a') {
+                            emit_byte(0x07);
+                        } else if (*p == 'b') {
+                            emit_byte(0x08);
+                        } else if (*p == 't') {
+                            emit_byte(0x09);
+                        } else if (*p == 'n') {
+                            emit_byte(0x0a);
+                        } else if (*p == 'v') {
+                            emit_byte(0x0b);
+                        } else if (*p == 'f') {
+                            emit_byte(0x0c);
+                        } else if (*p == 'r') {
+                            emit_byte(0x0d);
+                        } else if (*p == 'e') {
+                            emit_byte(0x1b);
+                        } else if (*p >= '0' && *p <= '7') {
+                            c = 0;
+                            while (*p >= '0' && *p <= '7') {
+                                c = c * 8 + (*p - '0');
+                                p++;
+                            }
+                            emit_byte(c);
+                        } else {
+                            p--;
+                            fprintf(stderr, "Error: bad escape inside string\n");
+                        }
+                    } else {
+                        emit_byte(*p);
+                    }
+                    p++;
+                }
+                if (*p) {
+                    p++;
+                } else {
+                    fprintf(stderr, "Error: unterminated string\n");
+                }
+            } else {
+                p2 = match_expression(p, &instruction_value);
+                if (p2 == NULL) {
+                    fprintf(stderr, "Error: bad expression\n");
+                    break;
+                }
+                emit_byte(instruction_value);
+                p = p2;
+            }
+            p = avoid_spaces(p);
+            if (*p == ',') {
+                p++;
+                continue;
+            }
+            check_end(p);
+            break;
+        }
+        return;
+    }
+    if (strcmp(part, "DW") == 0) {
+        while (1) {
+            p2 = match_expression(p, &instruction_value);
+            if (p2 == NULL) {
+                fprintf(stderr, "Error: bad expression\n");
+                break;
+            }
+            emit_byte(instruction_value);
+            emit_byte(instruction_value >> 8);
+            p = avoid_spaces(p2);
+            if (*p == ',') {
+                p++;
+                continue;
+            }
+            check_end(p);
+            break;
+        }
+        return;
+    }
+    while (part[0]) {
+        c = 0;
+        while (instruction_set[c] != NULL) {
+            if (strcmp(part, instruction_set[c]) == 0) {
+                p2 = instruction_set[c];
+                while (*p2++) ;
+                p3 = p2;
+                while (*p3++) ;
+                
+                p2 = match(p, p2, p3);
+                if (p2 != NULL) {
+                    p = p2;
+                    break;
+                }
+            }
+            c++;
+        }
+        if (instruction_set[c] == NULL) {
+            char m[256];
+            
+            sprintf(m, "Undefined instruction '%s %s'", part, p);
+            message(1, m);
+            errors++;
+            break;
+        } else {
+            p = p2;
+            separate();
+        }
+    }
+}
+
+/*
  ** Do an assembler step
  */
 void do_assembly()
@@ -939,6 +1107,9 @@ void do_assembly()
     char *p2;
     char *p3;
     int first_time;
+    int level;
+    int avoid_level;
+    int times;
     
     input = fopen(input_filename, "r");
     if (input == NULL) {
@@ -947,6 +1118,8 @@ void do_assembly()
         return;
     }
     first_time = 1;
+    level = 0;
+    avoid_level = -1;
     line_number = 0;
     while (fgets(line, sizeof(line) - 1, input)) {
         line_number++;
@@ -968,14 +1141,94 @@ void do_assembly()
         
         p = line;
         separate();
+        if (part[0] == '\0' && (*p == '\0' || *p == ';'))    /* Empty line */
+            continue;
         if (part[0] != '\0' && part[strlen(part) - 1] == ':') {	/* Label */
             part[strlen(part) - 1] = '\0';
-            if (first_time == 1) {
-                first_time = 0;
-                position = 0x0100;
-            }
-            last_label = define_label(part, position);
+            strcpy(name, part);
             separate();
+            if (avoid_level == -1 || level < avoid_level) {
+                if (strcmp(part, "EQU") != 0) {
+                    if (first_time == 1) {
+#ifdef DEBUG
+                        fprintf(stderr, "First time '%s' at line %d\n", line, line_number);
+#endif
+                        first_time = 0;
+                        address = 0x0100;
+                        start_address = 0x0100;
+                    }
+                }
+                last_label = define_label(name, address);
+            }
+        }
+        if (strcmp(part, "%IF") == 0) {
+            level++;
+            if (avoid_level != -1 && level >= avoid_level)
+                continue;
+            undefined = 0;
+            p = match_expression(p, &instruction_value);
+            if (p == NULL) {
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Undefined labels");
+            }
+            if (instruction_value != 0) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            continue;
+        }
+        if (strcmp(part, "%IFDEF") == 0) {
+            level++;
+            if (avoid_level != -1 && level >= avoid_level)
+                continue;
+            separate();
+            if (find_label(part) != NULL) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            continue;
+        }
+        if (strcmp(part, "%IFNDEF") == 0) {
+            level++;
+            if (avoid_level != -1 && level >= avoid_level)
+                continue;
+            separate();
+            if (find_label(part) == NULL) {
+                ;
+            } else {
+                avoid_level = level;
+            }
+            check_end(p);
+            continue;
+        }
+        if (strcmp(part, "%ELSE") == 0) {
+            if (avoid_level != -1 && level > avoid_level)
+                continue;
+            if (avoid_level == level) {
+                avoid_level = -1;
+            } else if (avoid_level == -1) {
+                avoid_level = level;
+            }
+            check_end(p);
+            continue;
+        }
+        if (strcmp(part, "%ENDIF") == 0) {
+            if (avoid_level == level)
+                avoid_level = -1;
+            level--;
+            check_end(p);
+            continue;
+        }
+        if (avoid_level != -1 && level >= avoid_level) {
+#ifdef DEBUG
+            /*fprintf(stderr, "Avoiding '%s'\n", line);*/
+#endif
+            continue;
         }
         if (strcmp(part, "USE16") == 0) {
             continue;
@@ -985,140 +1238,82 @@ void do_assembly()
             if (memcmp(p, "8086", 4) == 0)
                 continue;
             else
-                fprintf(stderr, "Error: unsupported processor requested\n");
+                message(1, "Unsupported processor requested");
             continue;
         }
-        if (first_time == 1) {
-            first_time = 0;
-            position = 0x0100;
-        }
-        if (strcmp(part, "EQU") == 0) {
+        if (strcmp(part, "ORG") == 0) {
+            p = avoid_spaces(p);
+            undefined = 0;
             p2 = match_expression(p, &instruction_value);
             if (p2 == NULL) {
-                fprintf(stderr, "Error: bad expression\n");
+                message(1, "Bad expression");
+            } else if (undefined) {
+                message(1, "Cannot use undefined labels");
             } else {
-                if (last_label == NULL)
-                    fprintf(stderr, "Error: no label associated to EQU\n");
-                else
-                    last_label->value = instruction_value;
+                if (first_time == 1) {
+                    first_time = 0;
+                    address = instruction_value;
+                    start_address = instruction_value;
+                } else {
+                    if (instruction_value < address) {
+                        message(1, "Backward address");
+                    } else {
+                        while (address < instruction_value)
+                            emit_byte(0);
+                        
+                    }
+                }
                 check_end(p2);
             }
             continue;
         }
-        if (strcmp(part, "DB") == 0) {
-            while (1) {
-                p = avoid_spaces(p);
-                if (*p == '"') {    /* ASCII text */
-                    p++;
-                    while (*p && *p != '"') {
-                        if (*p == '\\') {
-                            p++;
-                            if (*p == '\'') {
-                                emit_byte('\'');
-                            } else if (*p == '\"') {
-                                emit_byte('"');
-                            } else if (*p == '\\') {
-                                emit_byte('\\');
-                            } else if (*p == 'a') {
-                                emit_byte(0x07);
-                            } else if (*p == 'b') {
-                                emit_byte(0x08);
-                            } else if (*p == 't') {
-                                emit_byte(0x09);
-                            } else if (*p == 'n') {
-                                emit_byte(0x0a);
-                            } else if (*p == 'v') {
-                                emit_byte(0x0b);
-                            } else if (*p == 'f') {
-                                emit_byte(0x0c);
-                            } else if (*p == 'r') {
-                                emit_byte(0x0d);
-                            } else if (*p == 'e') {
-                                emit_byte(0x1b);
-                            } else if (*p >= '0' && *p <= '7') {
-                                c = 0;
-                                while (*p >= '0' && *p <= '7') {
-                                    c = c * 8 + (*p - '0');
-                                    p++;
-                                }
-                                emit_byte(c);
-                            } else {
-                                p--;
-                                fprintf(stderr, "Error: bad escape inside string\n");
-                            }
-                        } else {
-                            emit_byte(*p);
-                        }
-                        p++;
-                    }
-                    if (*p) {
-                        p++;
-                    } else {
-                        fprintf(stderr, "Error: unterminated string\n");
-                    }
-                } else {
-                    p2 = match_expression(p, &instruction_value);
-                    if (p2 == NULL) {
-                        fprintf(stderr, "Error: bad expression\n");
-                        break;
-                    }
-                    emit_byte(instruction_value);
-                    p = p2;
-                }
-                p = avoid_spaces(p);
-                if (*p == ',') {
-                    p++;
-                    continue;
-                }
-                check_end(p);
-                break;
-            }
-            continue;
-        }
-        if (strcmp(part, "DW") == 0) {
-            while (1) {
-                p2 = match_expression(p, &instruction_value);
-                if (p2 == NULL) {
-                    fprintf(stderr, "Error: bad expression\n");
-                    break;
-                }
-                emit_byte(instruction_value);
-                emit_byte(instruction_value >> 8);
-                p = avoid_spaces(p2);
-                if (*p == ',') {
-                    p++;
-                    continue;
-                }
-                check_end(p);
-                break;
-            }
-            continue;
-        }
-        while (part[0]) {
-            c = 0;
-            while (instruction_set[c] != NULL) {
-                if (strcmp(part, instruction_set[c]) == 0) {
-                    p2 = instruction_set[c];
-                    while (*p2++) ;
-                    p3 = p2;
-                    while (*p3++) ;
-                    
-                    p2 = match(p, p2, p3);
-                    if (p2 != NULL) {
-                        p = p2;
-                        break;
-                    }
-                }
-                c++;
-            }
-            if (instruction_set[c] == NULL) {
-                fprintf(stderr, "Error: undefined instruction '%s %s'\n", part, p);
-                errors++;
-                break;
+        if (strcmp(part, "EQU") == 0) {
+            p2 = match_expression(p, &instruction_value);
+            if (p2 == NULL) {
+                message(1, "bad expression");
             } else {
-                p = p2;
-                separate();
+                if (last_label == NULL)
+                    message(1, "no label associated to EQU");
+                else {
+#ifdef DEBUG
+                    /*fprintf(stderr, "Debug: label %s assigned %d\n", last_label->name, instruction_value);*/
+#endif
+                    last_label->value = instruction_value;
+                }
+                check_end(p2);
             }
+            continue;
+        }
+        if (first_time == 1) {
+#ifdef DEBUG
+            fprintf(stderr, "First time '%s' at line %d\n", line, line_number);
+#endif
+            first_time = 0;
+            address = 0x0100;
+            start_address = 0x0100;
+        }
+        times = 1;
+        if (strcmp(part, "TIMES") == 0) {
+            undefined = 0;
+            p2 = match_expression(p, &instruction_value);
+            if (p2 == NULL) {
+                message(1, "bad expression");
+                continue;
+            }
+            if (undefined) {
+                message(1, "non-constant expression");
+                continue;
+            }
+            times = instruction_value;
+            p = p2;
+            separate();
+        }
+        p3 = prev_p;
+        while (times) {
+            p = p3;
+            separate();
+            process_instruction();
+            times--;
         }
     }
     fclose(input);
@@ -1134,18 +1329,25 @@ int main(argc, argv)
     int c;
     int d;
     
+    /*
+     ** If ran without arguments then show usage
+     */
     if (argc == 1) {
         fprintf(stderr, "Typical usage:\n");
         fprintf(stderr, "tinyasm -f bin input.asm -o input.bin\n");
         exit(1);
     }
+    
+    /*
+     ** Start to collect arguments
+     */
     input_filename = NULL;
     output_filename = NULL;
     c = 1;
     while (c < argc) {
-        if (argv[c][0] == '-') {
+        if (argv[c][0] == '-') {    /* All arguments start with dash */
             d = tolower(argv[c][1]);
-            if (d == 'f') {
+            if (d == 'f') { /* Format */
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -f\n");
@@ -1155,7 +1357,7 @@ int main(argc, argv)
                         fprintf(stderr, "Error: only 'bin' supported for -f (it is '%s')\n", argv[c]);
                     c++;
                 }
-            } else if (d == 'o') {
+            } else if (d == 'o') {  /* Object file name */
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -o\n");
@@ -1184,9 +1386,17 @@ int main(argc, argv)
         fprintf(stderr, "No input filename provided\n");
         exit(1);
     }
+    
+    /*
+     ** Do first step of assembly
+     */
     assembler_step = 1;
     do_assembly();
     if (!errors) {
+        
+        /*
+         ** Do second step of assembly and generate final output
+         */
         if (output_filename == NULL) {
             fprintf(stderr, "No output filename provided\n");
             exit(1);
