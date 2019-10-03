@@ -11,58 +11,10 @@
 
 char *input_filename;
 FILE *input;
+int line_number;
+
 char *output_filename;
 FILE *output;
-
-char line[256];
-char part[256];
-char *p;
-
-int errors;
-
-struct label {
-    struct label *prev;
-    int value;
-    char name[1];
-};
-
-struct label *label_list;
-struct label *last_label;
-
-extern char *instruction_set[];
-
-char *reg1[8] = {
-    "AL",
-    "CL",
-    "DL",
-    "BL",
-    "AH",
-    "CH",
-    "DH",
-    "BH"
-};
-
-char *reg2[8] = {
-    "AX",
-    "CX",
-    "DX",
-    "BX",
-    "SP",
-    "BP",
-    "SI",
-    "DI"
-};
-
-char *addr1[8] = {
-    "BX+SI",
-    "BX+DI",
-    "BP+SI",
-    "BP+DI",
-    "SI",
-    "DI",
-    "BP",
-    "BX"
-};
 
 int assembler_step;
 int position;
@@ -76,6 +28,50 @@ int instruction_register;
 int instruction_value;
 int instruction_value2;
 
+#define MAX_SIZE        256
+
+char line[MAX_SIZE];
+char part[MAX_SIZE];
+char name[MAX_SIZE];
+char undefined_name[MAX_SIZE];
+char *p;
+
+int errors;
+
+struct label {
+    struct label *prev;
+    int value;
+    char name[1];
+};
+
+struct label *label_list;
+struct label *last_label;
+int undefined;
+
+extern char *instruction_set[];
+
+char *reg1[16] = {
+    "AL",
+    "CL",
+    "DL",
+    "BL",
+    "AH",
+    "CH",
+    "DH",
+    "BH",
+    "AX",
+    "CX",
+    "DX",
+    "BX",
+    "SP",
+    "BP",
+    "SI",
+    "DI"
+};
+
+/*
+ ** Define a new label
+ */
 struct label *define_label(name, value)
     char *name;
     int value;
@@ -88,7 +84,25 @@ struct label *define_label(name, value)
     label->prev = label_list;
     label->value = value;
     strcpy(label->name, name);
+    label_list = label;
     return label;
+}
+
+/*
+ ** Find a label
+ */
+struct label *find_label(name)
+    char *name;
+{
+    struct label *explore;
+    
+    explore = label_list;
+    while (explore != NULL) {
+        if (strcmp(name, explore->name) == 0)
+            return explore;
+        explore = explore->prev;
+    }
+    return NULL;
 }
 
 /*
@@ -254,7 +268,7 @@ char *match_register(p, width, value)
         }
     } else {
         for (c = 0; c < 8; c++)
-            if (strcmp(reg, reg2[c]) == 0)
+            if (strcmp(reg, reg1[c + 8]) == 0)
                 break;
         if (c < 8) {
             *value = c;
@@ -271,8 +285,192 @@ char *match_expression(p, value)
     char *p;
     int *value;
 {
+    int value1;
+    
+    p = match_expression_level1(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '|') {
+            p++;
+            value1 = *value;
+            p = match_expression_level1(p, value);
+            if (p == NULL)
+                return NULL;
+            *value |= value1;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level1(p, value)
+    char *p;
+    int *value;
+{
+    int value1;
+    
+    p = match_expression_level2(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '^') {
+            p++;
+            value1 = *value;
+            p = match_expression_level2(p, value);
+            if (p == NULL)
+                return NULL;
+            *value ^= value1;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level2(p, value)
+    char *p;
+    int *value;
+{
+    int value1;
+    
+    p = match_expression_level3(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '&') {
+            p++;
+            value1 = *value;
+            p = match_expression_level3(p, value);
+            if (p == NULL)
+                return NULL;
+            *value &= value1;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level3(p, value)
+    char *p;
+    int *value;
+{
+    int value1;
+    
+    p = match_expression_level4(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '<' && p[1] == '<') {
+            p += 2;
+            value1 = *value;
+            p = match_expression_level4(p, value);
+            if (p == NULL)
+                return NULL;
+            *value = value1 << *value;
+        } else if (*p == '>' && p[1] == '>') {
+            p += 2;
+            value1 = *value;
+            p = match_expression_level4(p, value);
+            if (p == NULL)
+                return NULL;
+            *value = value1 >> *value;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level4(p, value)
+    char *p;
+    int *value;
+{
+    int value1;
+    
+    p = match_expression_level5(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '+') {
+            p++;
+            value1 = *value;
+            p = match_expression_level5(p, value);
+            if (p == NULL)
+                return NULL;
+            *value = value1 + *value;
+        } else if (*p == '-') {
+            p++;
+            value1 = *value;
+            p = match_expression_level5(p, value);
+            if (p == NULL)
+                return NULL;
+            *value = value1 - *value;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level5(p, value)
+    char *p;
+    int *value;
+{
+    int value1;
+    
+    p = match_expression_level6(p, value);
+    if (p == NULL)
+        return NULL;
+    while (1) {
+        p = avoid_spaces(p);
+        if (*p == '*') {
+            p++;
+            value1 = *value;
+            p = match_expression_level6(p, value);
+            if (p == NULL)
+                return NULL;
+            *value = value1 * *value;
+        } else if (*p == '/') {
+            p++;
+            value1 = *value;
+            p = match_expression_level6(p, value);
+            if (p == NULL)
+                return NULL;
+            if (*value == 0) {
+                if (assembler_step == 2)
+                    fprintf(stderr, "Error: division by zero\n");
+                *value = 1;
+            }
+            *value = value1 / *value;
+        } else if (*p == '%') {
+            p++;
+            value1 = *value;
+            p = match_expression_level6(p, value);
+            if (p == NULL)
+                return NULL;
+            if (*value == 0) {
+                if (assembler_step == 2)
+                    fprintf(stderr, "Error: modulo by zero\n");
+                *value = 1;
+            }
+            *value = value1 % *value;
+        } else {
+            return p;
+        }
+    }
+}
+
+char *match_expression_level6(p, value)
+    char *p;
+    int *value;
+{
     int number;
     int c;
+    char *p2;
+    struct label *label;
     
     p = avoid_spaces(p);
     if (*p == '(') {    /* Handle parenthesized expressions */
@@ -288,15 +486,15 @@ char *match_expression(p, value)
     }
     if (*p == '-') {    /* Simple negation */
         p++;
-        p = match_expression(p, value);
+        p = match_expression_level6(p, value);
         if (p == NULL)
             return NULL;
         *value = -*value;
         return p;
     }
-    if (*p == '+') {    /* Simple negation */
+    if (*p == '+') {    /* Unary */
         p++;
-        p = match_expression(p, value);
+        p = match_expression_level6(p, value);
         if (p == NULL)
             return NULL;
         return p;
@@ -329,6 +527,22 @@ char *match_expression(p, value)
         *value = number;
         return p;
     }
+    if (p[0] == '$' && isdigit(p[1])) {	/* Hexadecimal */
+        /* This is nasm syntax, notice no letter is allowed after $ */
+        /* So it's preferrable to use prefix 0x for hexadecimal */
+        p += 1;
+        number = 0;
+        while (isxdigit(p[0])) {
+            c = toupper(p[0]);
+            c = c - '0';
+            if (c > 9)
+                c -= 7;
+            number = (number << 4) | c;
+            p++;
+        }
+        *value = number;
+        return p;
+    }
     if (isdigit(*p)) {   /* Decimal */
         number = 0;
         while (isdigit(p[0])) {
@@ -337,6 +551,24 @@ char *match_expression(p, value)
             p++;
         }
         *value = number;
+        return p;
+    }
+    if (isalpha(*p) || *p == '_') { /* Label */
+        p2 = name;
+        while (isalpha(*p) || isdigit(*p) || *p == '_')
+            *p2++ = toupper(*p++);
+        *p2 = '\0';
+        for (c = 0; c < 16; c++)
+            if (strcmp(name, reg1[c]) == 0)
+                return NULL;
+        label = find_label(name);
+        if (label == NULL) {
+            *value = 0;
+            undefined++;
+            strcpy(undefined_name, name);
+        } else {
+            *value = label->value;
+        }
         return p;
     }
     return NULL;
@@ -373,11 +605,12 @@ char *match(p, pattern, decode)
     int qualifier;
     char *base;
     
+    undefined = 0;
     while (*pattern) {
 /*        fputc(*pattern, stdout);*/
         if (*pattern == '%') {	/* Special */
             pattern++;
-            if (*pattern == 'd') {
+            if (*pattern == 'd') {  /* Addressing */
                 pattern++;
                 qualifier = 0;
                 if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
@@ -420,7 +653,7 @@ char *match(p, pattern, decode)
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'r') {
+            } else if (*pattern == 'r') {   /* Register */
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
@@ -437,7 +670,7 @@ char *match(p, pattern, decode)
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'i') {
+            } else if (*pattern == 'i') {   /* Immediate */
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
@@ -454,17 +687,32 @@ char *match(p, pattern, decode)
                 } else {
                     return NULL;
                 }
-            } else if (*pattern == 'a') {
+            } else if (*pattern == 'a') {   /* Address for jump */
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
+                    p = avoid_spaces(p);
+                    qualifier = 0;
+                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5])) {
+                        p += 5;
+                        qualifier = 1;
+                    }
                     p2 = match_expression(p, &instruction_value);
                     if (p2 == NULL)
                         return NULL;
+                    if (qualifier == 0) {
+                        c = instruction_value - (position + 2);
+                        if (undefined == 0 && (c < -128 || c > 127) && memcmp(decode, "xeb", 3) == 0)
+                            return NULL;
+                    }
                     p = p2;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value);
+                    p = avoid_spaces(p);
+                    if (memcmp(p, "SHORT", 5) == 0 && isspace(p[5]))
+                        p2 = NULL;
+                    else
+                        p2 = match_expression(p, &instruction_value);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -475,9 +723,22 @@ char *match(p, pattern, decode)
                 pattern++;
                 if (*pattern == '8') {
                     pattern++;
+                    p = avoid_spaces(p);
+                    qualifier = 0;
+                    if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
+                        p += 4;
+                        qualifier = 1;
+                    }
                     p2 = match_expression(p, &instruction_value);
                     if (p2 == NULL)
                         return NULL;
+                    if (qualifier == 0) {
+                        c = instruction_value;
+                        if (undefined != 0)
+                            return NULL;
+                        if (undefined == 0 && (c < -128 || c > 127))
+                            return NULL;
+                    }
                     p = p2;
                 } else {
                     return NULL;
@@ -582,6 +843,8 @@ char *match(p, pattern, decode)
                         if (decode[1] == '8') {
                             decode += 2;
                             c = instruction_value - (position + 1);
+                            if (assembler_step == 2 && (c < -128 || c > 127))
+                                fprintf(stderr, "Error: short jump too long at line %d\n", line_number);
                             break;
                         } else {
                             decode += 3;
@@ -619,6 +882,11 @@ char *match(p, pattern, decode)
             }
         }
     }
+    if (assembler_step == 2) {
+        if (undefined) {
+            fprintf(stderr, "Error: undefined label '%s' at line %d\n", undefined_name, line_number);
+        }
+    }
     return p;
 }
 
@@ -652,6 +920,17 @@ void separate(void)
 }
 
 /*
+ ** Check for end of line
+ */
+void check_end(p)
+    char *p;
+{
+    p = avoid_spaces(p);
+    if (*p && *p != ';')
+        fprintf(stderr, "Error: extra characters at end of line %d\n", line_number);
+}
+
+/*
  ** Do an assembler step
  */
 void do_assembly()
@@ -659,6 +938,7 @@ void do_assembly()
     int c;
     char *p2;
     char *p3;
+    int first_time;
     
     input = fopen(input_filename, "r");
     if (input == NULL) {
@@ -666,7 +946,10 @@ void do_assembly()
         errors++;
         return;
     }
+    first_time = 1;
+    line_number = 0;
     while (fgets(line, sizeof(line) - 1, input)) {
+        line_number++;
         p = line;
         c = 0;
         while (*p) {
@@ -679,13 +962,137 @@ void do_assembly()
                 p++;
             }
         }
+        if (p > line && *(p - 1) == '\n')
+            p--;
+        *p = '\0';
         
         p = line;
         separate();
         if (part[0] != '\0' && part[strlen(part) - 1] == ':') {	/* Label */
             part[strlen(part) - 1] = '\0';
+            if (first_time == 1) {
+                first_time = 0;
+                position = 0x0100;
+            }
             last_label = define_label(part, position);
             separate();
+        }
+        if (strcmp(part, "USE16") == 0) {
+            continue;
+        }
+        if (strcmp(part, "CPU") == 0) {
+            p = avoid_spaces(p);
+            if (memcmp(p, "8086", 4) == 0)
+                continue;
+            else
+                fprintf(stderr, "Error: unsupported processor requested\n");
+            continue;
+        }
+        if (first_time == 1) {
+            first_time = 0;
+            position = 0x0100;
+        }
+        if (strcmp(part, "EQU") == 0) {
+            p2 = match_expression(p, &instruction_value);
+            if (p2 == NULL) {
+                fprintf(stderr, "Error: bad expression\n");
+            } else {
+                if (last_label == NULL)
+                    fprintf(stderr, "Error: no label associated to EQU\n");
+                else
+                    last_label->value = instruction_value;
+                check_end(p2);
+            }
+            continue;
+        }
+        if (strcmp(part, "DB") == 0) {
+            while (1) {
+                p = avoid_spaces(p);
+                if (*p == '"') {    /* ASCII text */
+                    p++;
+                    while (*p && *p != '"') {
+                        if (*p == '\\') {
+                            p++;
+                            if (*p == '\'') {
+                                emit_byte('\'');
+                            } else if (*p == '\"') {
+                                emit_byte('"');
+                            } else if (*p == '\\') {
+                                emit_byte('\\');
+                            } else if (*p == 'a') {
+                                emit_byte(0x07);
+                            } else if (*p == 'b') {
+                                emit_byte(0x08);
+                            } else if (*p == 't') {
+                                emit_byte(0x09);
+                            } else if (*p == 'n') {
+                                emit_byte(0x0a);
+                            } else if (*p == 'v') {
+                                emit_byte(0x0b);
+                            } else if (*p == 'f') {
+                                emit_byte(0x0c);
+                            } else if (*p == 'r') {
+                                emit_byte(0x0d);
+                            } else if (*p == 'e') {
+                                emit_byte(0x1b);
+                            } else if (*p >= '0' && *p <= '7') {
+                                c = 0;
+                                while (*p >= '0' && *p <= '7') {
+                                    c = c * 8 + (*p - '0');
+                                    p++;
+                                }
+                                emit_byte(c);
+                            } else {
+                                p--;
+                                fprintf(stderr, "Error: bad escape inside string\n");
+                            }
+                        } else {
+                            emit_byte(*p);
+                        }
+                        p++;
+                    }
+                    if (*p) {
+                        p++;
+                    } else {
+                        fprintf(stderr, "Error: unterminated string\n");
+                    }
+                } else {
+                    p2 = match_expression(p, &instruction_value);
+                    if (p2 == NULL) {
+                        fprintf(stderr, "Error: bad expression\n");
+                        break;
+                    }
+                    emit_byte(instruction_value);
+                    p = p2;
+                }
+                p = avoid_spaces(p);
+                if (*p == ',') {
+                    p++;
+                    continue;
+                }
+                check_end(p);
+                break;
+            }
+            continue;
+        }
+        if (strcmp(part, "DW") == 0) {
+            while (1) {
+                p2 = match_expression(p, &instruction_value);
+                if (p2 == NULL) {
+                    fprintf(stderr, "Error: bad expression\n");
+                    break;
+                }
+                emit_byte(instruction_value);
+                emit_byte(instruction_value >> 8);
+                p = avoid_spaces(p2);
+                if (*p == ',') {
+                    p++;
+                    continue;
+                }
+                check_end(p);
+                break;
+            }
+            continue;
         }
         while (part[0]) {
             c = 0;
