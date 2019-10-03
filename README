@@ -23,9 +23,9 @@ and I couldn't find a compatible assembler!
 So what does a programmer when doesn't find the required
 tool? Start to code his own tool!
 
-It took me 3 days to get a working assembler compatible
-with the nasm syntax, plus all the directives I've used
-in my programs.
+It took me 3 days to start from zero and get a working
+assembler compatible with the nasm syntax, plus all the
+directives I've used in my boot sector programs.
 
 Using the same command line syntax as nasm:
 
