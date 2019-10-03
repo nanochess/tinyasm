@@ -15,7 +15,7 @@ and it can work over a real PC XT machine. It requires
 at least 128K of memory, maybe more.
 
 It came to my attention that several people wanted to
-assembly my boot sector games over real PC XT machines.
+assemble my boot sector games over real PC XT machines.
 
 Unfortunately, nasm doesn't run over 8086/8088 processors,
 and I couldn't find a compatible assembler!
@@ -94,6 +94,10 @@ C compiler Desmet C, version 3.1h available graciously at:
 
 The compiler has many bugs and limitations, but it works for
 tinyasm purposes, and it's freely available.
+
+Supposedly it should support ANSI C, but I couldn't fit a
+standard ANSI C function definition, so I had to code again
+in C K&R for the first time in maybe 20 years!
 
 You can find the "e.bat" file to assemble the compiler.
 
