@@ -10,7 +10,7 @@ of my boot sector games over real PC XT machines.
 Unfortunately, nasm doesn't run over 8086/8088 processors,
 and I couldn't find a compatible assembler, so what does a
 programmer when doesn't find the required tool? Start to
-code his own tool.
+code his own tool!
 
 Using the same command line syntax as nasm:
 

@@ -68,7 +68,11 @@ int assembler_step;
 int position;
 
 int instruction_addressing;
+int instruction_offset;
+int instruction_offset_width;
+
 int instruction_register;
+
 int instruction_value;
 int instruction_value2;
 
@@ -101,16 +105,128 @@ char *avoid_spaces(p)
 /*
  ** Match addressing
  */
-char *match_addressing(p, width, bits)
+char *match_addressing(p, width)
     char *p;
     int width;
-    int *bits;
 {
+    int reg;
+    int reg2;
+    char *p2;
+    int *bits;
+    
+    bits = &instruction_addressing;
+    instruction_offset = 0;
+    instruction_offset_width = 0;
+    
     p = avoid_spaces(p);
     if (*p == '[') {
         p = avoid_spaces(p + 1);
+        p2 = match_register(p, 16, &reg);
+        if (p2 != NULL) {
+            p = avoid_spaces(p2);
+            if (*p == ']') {
+                p++;
+                if (reg == 3) {   /* BX */
+                    *bits = 0x07;
+                } else if (reg == 5) {  /* BP */
+                    *bits = 0x46;
+                    instruction_offset = 0;
+                    instruction_offset_width = 1;
+                } else if (reg == 6) {  /* SI */
+                    *bits = 0x04;
+                } else if (reg == 7) {  /* DI */
+                    *bits = 0x05;
+                } else {    /* Not valid */
+                    return NULL;
+                }
+            } else if (*p == '+' || *p == '-') {
+                if (*p == '+') {
+                    p = avoid_spaces(p + 1);
+                    p2 = match_register(p, 16, &reg2);
+                } else {
+                    p2 = NULL;
+                }
+                if (p2 != NULL) {
+                    if ((reg == 3 && reg2 == 6) || (reg == 6 && reg2 == 3)) {   /* BX+SI / SI+BX */
+                        *bits = 0x00;
+                    } else if ((reg == 3 && reg2 == 7) || (reg == 7 && reg2 == 3)) {    /* BX+DI / DI+BX */
+                        *bits = 0x01;
+                    } else if ((reg == 5 && reg2 == 6) || (reg == 6 && reg2 == 5)) {    /* BP+SI / SI+BP */
+                        *bits = 0x02;
+                    } else if ((reg == 5 && reg2 == 7) || (reg == 7 && reg2 == 5)) {    /* BP+DI / DI+BP */
+                        *bits = 0x03;
+                    } else {    /* Not valid */
+                        return NULL;
+                    }
+                    p = avoid_spaces(p2);
+                    if (*p == ']') {
+                        p++;
+                    } else if (*p == '+' || *p == '-') {
+                        p2 = match_expression(p, &instruction_offset);
+                        if (p2 == NULL)
+                            return NULL;
+                        p = avoid_spaces(p2);
+                        if (*p != ']')
+                            return NULL;
+                        p++;
+                        if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
+                            instruction_offset_width = 1;
+                            *bits |= 0x40;
+                        } else {
+                            instruction_offset_width = 2;
+                            *bits |= 0x80;
+                        }
+                    } else {    /* Syntax error */
+                        return NULL;
+                    }
+                } else {
+                    if (reg == 3) {   /* BX */
+                        *bits = 0x07;
+                    } else if (reg == 5) {  /* BP */
+                        *bits = 0x06;
+                    } else if (reg == 6) {  /* SI */
+                        *bits = 0x04;
+                    } else if (reg == 7) {  /* DI */
+                        *bits = 0x05;
+                    } else {    /* Not valid */
+                        return NULL;
+                    }
+                    p2 = match_expression(p, &instruction_offset);
+                    if (p2 == NULL)
+                        return NULL;
+                    p = avoid_spaces(p2);
+                    if (*p != ']')
+                        return NULL;
+                    p++;
+                    if (instruction_offset >= -0x80 && instruction_offset <= 0x7f) {
+                        instruction_offset_width = 1;
+                        *bits |= 0x40;
+                    } else {
+                        instruction_offset_width = 2;
+                        *bits |= 0x80;
+                    }
+                }
+            } else {    /* Syntax error */
+                return NULL;
+            }
+        } else {    /* No valid register, try expression */
+            p2 = match_expression(p, &instruction_offset);
+            if (p2 == NULL)
+                return NULL;
+            p = avoid_spaces(p2);
+            if (*p != ']')
+                return NULL;
+            p++;
+            *bits = 0x06;
+            instruction_offset_width = 2;
+        }
+    } else {
+        p = match_register(p, width, &reg);
+        if (p == NULL)
+            return NULL;
+        *bits = 0xc0 | reg;
     }
-    return NULL;
+    return p;
 }
 
 /*
@@ -159,6 +275,46 @@ char *match_expression(p, value)
     int c;
     
     p = avoid_spaces(p);
+    if (*p == '(') {    /* Handle parenthesized expressions */
+        p++;
+        p = match_expression(p, value);
+        if (p == NULL)
+            return NULL;
+        p = avoid_spaces(p);
+        if (*p != ')')
+            return NULL;
+        p++;
+        return p;
+    }
+    if (*p == '-') {    /* Simple negation */
+        p++;
+        p = match_expression(p, value);
+        if (p == NULL)
+            return NULL;
+        *value = -*value;
+        return p;
+    }
+    if (*p == '+') {    /* Simple negation */
+        p++;
+        p = match_expression(p, value);
+        if (p == NULL)
+            return NULL;
+        return p;
+    }
+    if (p[0] == '0' && tolower(p[1]) == 'b') {
+        p += 2;
+        number = 0;
+        while (p[0] == '0' || p[0] == '1' || p[0] == '-') {
+            if (p[0] != '_') {
+                number <<= 1;
+                if (p[0] == '1')
+                    number |= 1;
+            }
+            p++;
+        }
+        *value = number;
+        return p;
+    }
     if (p[0] == '0' && tolower(p[1]) == 'x' && isxdigit(p[2])) {	/* Hexadecimal */
         p += 2;
         number = 0;
@@ -172,7 +328,8 @@ char *match_expression(p, value)
         }
         *value = number;
         return p;
-    } else if (isdigit(*p)) {
+    }
+    if (isdigit(*p)) {   /* Decimal */
         number = 0;
         while (isdigit(p[0])) {
             c = p[0] - '0';
@@ -183,6 +340,21 @@ char *match_expression(p, value)
         return p;
     }
     return NULL;
+}
+
+/*
+ ** Emit one byte to output
+ */
+void emit_byte(int byte)
+{
+    char buf[1];
+    
+    if (assembler_step == 2) {
+        buf[0] = byte;
+        /* Cannot use fputc because DeSmet C expands to CR LF */
+        fwrite(buf, 1, 1, output);
+    }
+    position++;
 }
 
 /*
@@ -197,41 +369,51 @@ char *match(p, pattern, decode)
     int c;
     int d;
     int bit;
+    char buf[3];
+    int qualifier;
+    char *base;
     
     while (*pattern) {
-        fputc(*pattern, stdout);
+/*        fputc(*pattern, stdout);*/
         if (*pattern == '%') {	/* Special */
             pattern++;
             if (*pattern == 'd') {
                 pattern++;
+                qualifier = 0;
+                if (memcmp(p, "WORD", 4) == 0 && !isalpha(p[4])) {
+                    p = avoid_spaces(p + 4);
+                    if (*p != '[')
+                        return NULL;
+                    qualifier = 16;
+                } else if (memcmp(p, "BYTE", 4) == 0 && !isalpha(p[4])) {
+                    p = avoid_spaces(p + 4);
+                    if (*p != '[')
+                        return NULL;
+                    qualifier = 8;
+                }
                 if (*pattern == 'w') {
                     pattern++;
-                    if (memcmp(p, "WORD", 4) == 0 && isspace(p[4])) {
-                        p2 = p + 4;
-                        while (isspace(*p2))
-                            p2++;
-                        if (*p2 != '[')
-                            return NULL;
-                    }
+                    if (qualifier != 16 && match_register(p, 16, &d) == 0)
+                        return NULL;
                 } else if (*pattern == 'b') {
                     pattern++;
-                    if (memcmp(p, "BYTE", 4) == 0 && isspace(p[4])) {
-                        p2 = p + 4;
-                        while (isspace(*p2))
-                            p2++;
-                        if (*p2 != '[')
-                            return NULL;
-                    }
+                    if (qualifier != 8 && match_register(p, 8, &d) == 0)
+                        return NULL;
+                } else {
+                    if (qualifier == 8 && *pattern != '8')
+                        return NULL;
+                    if (qualifier == 16 && *pattern != '1')
+                        return NULL;
                 }
                 if (*pattern == '8') {
                     pattern++;
-                    p2 = match_addressing(p, 8, &instruction_addressing);
+                    p2 = match_addressing(p, 8);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
                 } else if (*pattern == '1' && pattern[1] == '6') {
                     pattern += 2;
-                    p2 = match_addressing(p, 16, &instruction_addressing);
+                    p2 = match_addressing(p, 16);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -304,13 +486,13 @@ char *match(p, pattern, decode)
                 pattern++;
                 if (*pattern == '3' && pattern[1] == '2') {
                     pattern += 2;
-                    p2 = match_expression(p, &instruction_value);
+                    p2 = match_expression(p, &instruction_value2);
                     if (p2 == NULL)
                         return NULL;
                     if (*p2 != ':')
                         return NULL;
                     p = p2 + 1;
-                    p2 = match_expression(p, &instruction_value2);
+                    p2 = match_expression(p, &instruction_value);
                     if (p2 == NULL)
                         return NULL;
                     p = p2;
@@ -331,6 +513,7 @@ char *match(p, pattern, decode)
     /*
      ** Instruction properly matched, now generate binary
      */
+    base = decode;
     while (*decode) {
         decode = avoid_spaces(decode);
         if (decode[0] == 'x') { /* Byte */
@@ -343,26 +526,25 @@ char *match(p, pattern, decode)
             if (d > 9)
                 d -= 7;
             c = (c << 4) | d;
-            if (assembler_step == 2)
-                fputc(c, output);
-            position++;
+            emit_byte(c);
             decode += 3;
         } else {    /* Binary */
             if (*decode == 'b')
                 decode++;
             bit = 0;
             c = 0;
+            d = 0;
             while (bit < 8) {
-                if (decode[0] == '0') {
+                if (decode[0] == '0') { /* Zero */
                     decode++;
                     bit++;
-                } else if (decode[0] == '1') {
+                } else if (decode[0] == '1') {  /* One */
                     c |= 0x80 >> bit;
                     decode++;
                     bit++;
-                } else if (decode[0] == '%') {
+                } else if (decode[0] == '%') {  /* Special */
                     decode++;
-                    if (decode[0] == 'r') {
+                    if (decode[0] == 'r') { /* Register field */
                         decode++;
                         if (decode[0] == '8')
                             decode++;
@@ -370,16 +552,71 @@ char *match(p, pattern, decode)
                             decode += 2;
                         c |= instruction_register << (5 - bit);
                         bit += 3;
+                    } else if (decode[0] == 'd') {  /* Addressing field */
+                        if (decode[1] == '8')
+                            decode += 2;
+                        else
+                            decode += 3;
+                        if (bit == 0) {
+                            c |= instruction_addressing & 0xc0;
+                            bit += 2;
+                        } else {
+                            c |= instruction_addressing & 0x07;
+                            bit += 3;
+                            d = 1;
+                        }
+                    } else if (decode[0] == 'i' || decode[0] == 's') {
+                        if (decode[1] == '8') {
+                            decode += 2;
+                            c = instruction_value;
+                            break;
+                        } else {
+                            decode += 3;
+                            c = instruction_value;
+                            instruction_offset = instruction_value >> 8;
+                            instruction_offset_width = 1;
+                            d = 1;
+                            break;
+                        }
+                    } else if (decode[0] == 'a') {
+                        if (decode[1] == '8') {
+                            decode += 2;
+                            c = instruction_value - (position + 1);
+                            break;
+                        } else {
+                            decode += 3;
+                            c = instruction_value - (position + 2);
+                            instruction_offset = c >> 8;
+                            instruction_offset_width = 1;
+                            d = 1;
+                            break;
+                        }
+                    } else if (decode[0] == 'f') {
+                        decode += 3;
+                        emit_byte(instruction_value);
+                        c = instruction_value >> 8;
+                        instruction_offset = instruction_value2;
+                        instruction_offset_width = 2;
+                        d = 1;
+                        break;
                     } else {
                         fprintf(stderr, "decode: internal error 2\n");
                     }
                 } else {
-                    fprintf(stderr, "decode: internal error 1\n");
+                    fprintf(stderr, "decode: internal error 1 (%s)\n", base);
                     break;
                 }
             }
-            if (assembler_step == 2)
-                fputc(c, output);
+            emit_byte(c);
+            if (d == 1) {
+                d = 0;
+                if (instruction_offset_width >= 1) {
+                    emit_byte(instruction_offset);
+                }
+                if (instruction_offset_width >= 2) {
+                    emit_byte(instruction_offset >> 8);
+                }
+            }
         }
     }
     return p;
@@ -468,7 +705,7 @@ void do_assembly()
                 c++;
             }
             if (instruction_set[c] == NULL) {
-                fprintf(stderr, "Error: undefined instruction '%s'\n", part);
+                fprintf(stderr, "Error: undefined instruction '%s %s'\n", part, p);
                 errors++;
                 break;
             } else {
