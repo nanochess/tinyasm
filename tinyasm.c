@@ -7,6 +7,8 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 
 #define DEBUG
@@ -85,6 +87,12 @@ char *reg1[16] = {
     "SI",
     "DI"
 };
+
+void message();
+char *match_register(), *match_expression(),
+     *match_expression_level1(), *match_expression_level2(),
+     *match_expression_level3(), *match_expression_level4(),
+     *match_expression_level5(), *match_expression_level6();
 
 /*
  ** Define a new label
@@ -786,7 +794,6 @@ char *match(p, pattern, decode)
     int c;
     int d;
     int bit;
-    char buf[3];
     int qualifier;
     char *base;
     
@@ -1145,7 +1152,7 @@ void message(error, message)
  */
 void process_instruction()
 {
-    char *p2;
+    char *p2 = NULL;
     char *p3;
     int c;
     
@@ -1236,14 +1243,13 @@ void process_instruction()
  */
 void do_assembly()
 {
-    int c;
     char *p2;
     char *p3;
     int first_time;
     int level;
     int avoid_level;
     int times;
-    int base;
+    int base = 0;
     
     input = fopen(input_filename, "r");
     if (input == NULL) {
@@ -1259,7 +1265,6 @@ void do_assembly()
     while (fgets(line, sizeof(line) - 1, input)) {
         line_number++;
         p = line;
-        c = 0;
         while (*p) {
             if (*p == '\'' && *(p - 1) != '\\') {
                 p++;
@@ -1508,7 +1513,7 @@ void do_assembly()
         }
         if (assembler_step == 2 && listing != NULL) {
             if (first_time)
-                fprintf(listing, "      ", base);
+                fprintf(listing, "      ");
             else
                 fprintf(listing, "%04X  ", base);
             p = generated;
