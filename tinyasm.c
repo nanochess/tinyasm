@@ -94,6 +94,11 @@ char *match_register(), *match_expression(),
      *match_expression_level3(), *match_expression_level4(),
      *match_expression_level5(), *match_expression_level6();
 
+#ifdef __DESMET__
+/* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
+#define exit(status)	_exit(status)
+#endif
+
 /*
  ** Define a new label
  */
