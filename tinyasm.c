@@ -414,7 +414,7 @@ char *read_character(p, c)
             }
         } else {
             p--;
-            fprintf(stderr, "Error: bad escape inside string\n");
+            message(1, "bad escape inside string");
         }
     } else {
         *c = *p;
@@ -601,7 +601,7 @@ char *match_expression_level5(p, value)
                 return NULL;
             if (*value == 0) {
                 if (assembler_step == 2)
-                    fprintf(stderr, "Error: division by zero\n");
+                    message(1, "division by zero");
                 *value = 1;
             }
             *value = (unsigned) value1 / *value;
@@ -613,7 +613,7 @@ char *match_expression_level5(p, value)
                 return NULL;
             if (*value == 0) {
                 if (assembler_step == 2)
-                    fprintf(stderr, "Error: modulo by zero\n");
+                    message(1, "modulo by zero");
                 *value = 1;
             }
             *value = value1 % *value;
@@ -1036,7 +1036,7 @@ char *match(p, pattern, decode)
                             decode += 2;
                             c = instruction_value - (address + 1);
                             if (assembler_step == 2 && (c < -128 || c > 127))
-                                fprintf(stderr, "Error: short jump too long at line %d\n", line_number);
+                                message(1, "short jump too long");
                             break;
                         } else {
                             decode += 3;
@@ -1121,6 +1121,7 @@ void check_end(p)
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         fprintf(stderr, "Error: extra characters at end of line %d\n", line_number);
+        errors++;
     }
 }
 
@@ -1678,9 +1679,19 @@ int main(argc, argv)
                 change_number++;
                 if (change_number == 5) {
                     fprintf(stderr, "Aborted: Couldn't stabilize moving label\n");
-                    exit(1);
+                    errors++;
                 }
             }
+            if (errors) {
+                remove(output_filename);
+                if (listing_filename != NULL)
+                    remove(listing_filename);
+                exit(1);
+            }
         } while (change) ;
+
+        exit(0);
     }
+
+    exit(1);
 }
