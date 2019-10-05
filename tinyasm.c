@@ -1565,19 +1565,23 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -f\n");
+                    exit(1);
                 } else {
                     to_lowercase(argv[c]);
-                    if (strcmp(argv[c], "bin") != 0)
+                    if (strcmp(argv[c], "bin") != 0) {
                         fprintf(stderr, "Error: only 'bin' supported for -f (it is '%s')\n", argv[c]);
+                        exit(1);
+                    }
                     c++;
                 }
             } else if (d == 'o') {  /* Object file name */
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -o\n");
+                    exit(1);
                 } else if (output_filename != NULL) {
                     fprintf(stderr, "Error: already a -o argument is present\n");
-                    c++;
+                    exit(1);
                 } else {
                     output_filename = argv[c];
                     c++;
@@ -1586,9 +1590,10 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -l\n");
+                    exit(1);
                 } else if (listing_filename != NULL) {
                     fprintf(stderr, "Error: already a -l argument is present\n");
-                    c++;
+                    exit(1);
                 } else {
                     listing_filename = argv[c];
                     c++;
@@ -1605,8 +1610,10 @@ int main(argc, argv)
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
                         fprintf(stderr, "Error: wrong label definition\n");
+                        exit(1);
                     } else if (undefined) {
                         fprintf(stderr, "Error: non-constant label definition\n");
+                        exit(1);
                     } else {
                         define_label(argv[c] + 2, instruction_value);
                     }
@@ -1614,11 +1621,12 @@ int main(argc, argv)
                 c++;
             } else {
                 fprintf(stderr, "Error: unknown argument %s\n", argv[c]);
-                c++;
+                exit(1);
             }
         } else {
             if (input_filename != NULL) {
                 fprintf(stderr, "Error: more than one input file name: %s\n", argv[c]);
+                exit(1);
             } else {
                 input_filename = argv[c];
             }
