@@ -36,6 +36,13 @@ There is also the -d option for define labels:
   -dCOM_FILE
   -dCOM_FILE=1
 
+It returns a non-zero error code when the assembled
+file generated errors.
+
+Thanks to tkchia for making it portable to ia16-elf-gcc,
+removing DeSmet C warnings, and making it to return
+error codes.
+
 
 >> DIFFERENCES BETWEEN TINYASM AND NASM >>
 

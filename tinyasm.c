@@ -94,6 +94,11 @@ char *match_register(), *match_expression(),
      *match_expression_level3(), *match_expression_level4(),
      *match_expression_level5(), *match_expression_level6();
 
+#ifdef __DESMET__
+/* Work around bug in DeSmet 3.1N runtime: closeall() overflows buffer and clobbers exit status */
+#define exit(status)	_exit(status)
+#endif
+
 /*
  ** Define a new label
  */
@@ -414,7 +419,7 @@ char *read_character(p, c)
             }
         } else {
             p--;
-            fprintf(stderr, "Error: bad escape inside string\n");
+            message(1, "bad escape inside string");
         }
     } else {
         *c = *p;
@@ -601,7 +606,7 @@ char *match_expression_level5(p, value)
                 return NULL;
             if (*value == 0) {
                 if (assembler_step == 2)
-                    fprintf(stderr, "Error: division by zero\n");
+                    message(1, "division by zero");
                 *value = 1;
             }
             *value = (unsigned) value1 / *value;
@@ -613,7 +618,7 @@ char *match_expression_level5(p, value)
                 return NULL;
             if (*value == 0) {
                 if (assembler_step == 2)
-                    fprintf(stderr, "Error: modulo by zero\n");
+                    message(1, "modulo by zero");
                 *value = 1;
             }
             *value = value1 % *value;
@@ -1036,7 +1041,7 @@ char *match(p, pattern, decode)
                             decode += 2;
                             c = instruction_value - (address + 1);
                             if (assembler_step == 2 && (c < -128 || c > 127))
-                                fprintf(stderr, "Error: short jump too long at line %d\n", line_number);
+                                message(1, "short jump too long");
                             break;
                         } else {
                             decode += 3;
@@ -1121,6 +1126,7 @@ void check_end(p)
     p = avoid_spaces(p);
     if (*p && *p != ';') {
         fprintf(stderr, "Error: extra characters at end of line %d\n", line_number);
+        errors++;
     }
 }
 
@@ -1564,19 +1570,23 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -f\n");
+                    exit(1);
                 } else {
                     to_lowercase(argv[c]);
-                    if (strcmp(argv[c], "bin") != 0)
+                    if (strcmp(argv[c], "bin") != 0) {
                         fprintf(stderr, "Error: only 'bin' supported for -f (it is '%s')\n", argv[c]);
+                        exit(1);
+                    }
                     c++;
                 }
             } else if (d == 'o') {  /* Object file name */
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -o\n");
+                    exit(1);
                 } else if (output_filename != NULL) {
                     fprintf(stderr, "Error: already a -o argument is present\n");
-                    c++;
+                    exit(1);
                 } else {
                     output_filename = argv[c];
                     c++;
@@ -1585,9 +1595,10 @@ int main(argc, argv)
                 c++;
                 if (c >= argc) {
                     fprintf(stderr, "Error: no argument for -l\n");
+                    exit(1);
                 } else if (listing_filename != NULL) {
                     fprintf(stderr, "Error: already a -l argument is present\n");
-                    c++;
+                    exit(1);
                 } else {
                     listing_filename = argv[c];
                     c++;
@@ -1604,8 +1615,10 @@ int main(argc, argv)
                     p = match_expression(p, &instruction_value);
                     if (p == NULL) {
                         fprintf(stderr, "Error: wrong label definition\n");
+                        exit(1);
                     } else if (undefined) {
                         fprintf(stderr, "Error: non-constant label definition\n");
+                        exit(1);
                     } else {
                         define_label(argv[c] + 2, instruction_value);
                     }
@@ -1613,11 +1626,12 @@ int main(argc, argv)
                 c++;
             } else {
                 fprintf(stderr, "Error: unknown argument %s\n", argv[c]);
-                c++;
+                exit(1);
             }
         } else {
             if (input_filename != NULL) {
                 fprintf(stderr, "Error: more than one input file name: %s\n", argv[c]);
+                exit(1);
             } else {
                 input_filename = argv[c];
             }
@@ -1678,9 +1692,19 @@ int main(argc, argv)
                 change_number++;
                 if (change_number == 5) {
                     fprintf(stderr, "Aborted: Couldn't stabilize moving label\n");
-                    exit(1);
+                    errors++;
                 }
             }
+            if (errors) {
+                remove(output_filename);
+                if (listing_filename != NULL)
+                    remove(listing_filename);
+                exit(1);
+            }
         } while (change) ;
+
+        exit(0);
     }
+
+    exit(1);
 }
