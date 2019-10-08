@@ -49,6 +49,14 @@ error codes.
 The main difference is that Tinyasm won't insert long jumps
 for miscalculated conditional jumps.
 
+Labels are started with letter, underscore or period.
+Case is insensitive.
+
+Local labels are supported, and should start with period.
+The local labels final name is derived from concatenation
+of the last global label (not starting with period) and
+the local label.
+
 There is only support for 8086/8088 processors, and only
 are implemented the following directives:
 
@@ -63,6 +71,36 @@ are implemented the following directives:
 	equ
 	db
 	dw
+
+The following operators are implemented:
+
+	|	Binary OR
+	^	Binary XOR
+	&	Binary AND
+	<<	Shift to left
+	>>	Shift to right
+	+	Addition 
+	-	Subtraction 
+	* 	Multiplication 
+	/	Division (unsigned 16-bit)
+	%	Modulo operator
+	(expr)	Parenthesis
+	-	Unary negation
+
+The following numbers are implemented:
+
+	0b0000_0100	Binary, you can use underscore (it will be ignored)
+	0xabcd		Hexadecimal.
+	$0abcd		Hexadecimal (after $ the first digit must be a number)
+	'a'		Character constant.
+	10		Decimal.
+	$$		Start address.
+	$		Current address.
+
+This assembler won't win a speed test ;) because the
+internal implementation of instruction set as a kind of
+personalized regular expression subset for easier coding
+that is searched linearly.
 
 
 >> DEBUG NOTES <<
