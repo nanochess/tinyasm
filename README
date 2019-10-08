@@ -98,9 +98,9 @@ The following numbers are implemented:
 	$		Current address.
 
 This assembler won't win a speed test ;) because the
-internal implementation of instruction set as a kind of
-personalized regular expression subset for easier coding
-that is searched linearly.
+internal implementation of linear search for the instruction
+set, and it is also implemented as a kind of regular
+expression subset for easier coding.
 
 
 >> DEBUG NOTES <<
