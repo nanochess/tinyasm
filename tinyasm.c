@@ -1232,7 +1232,7 @@ void process_instruction()
             c++;
         }
         if (instruction_set[c] == NULL) {
-            char m[256];
+            char m[25 + MAX_SIZE];
             
             sprintf(m, "Undefined instruction '%s %s'", part, p);
             message(1, m);
@@ -1268,7 +1268,7 @@ void do_assembly()
     avoid_level = -1;
     global_label[0] = '\0';
     line_number = 0;
-    while (fgets(line, sizeof(line) - 1, input)) {
+    while (fgets(line, sizeof(line), input)) {
         line_number++;
         p = line;
         while (*p) {
@@ -1313,7 +1313,7 @@ void do_assembly()
                         } else {
                             if (assembler_step == 1) {
                                 if (find_label(name)) {
-                                    char m[256];
+                                    char m[18 + MAX_SIZE];
                                     
                                     sprintf(m, "Redefined label '%s'", name);
                                     message(1, m);
@@ -1323,7 +1323,7 @@ void do_assembly()
                             } else {
                                 last_label = find_label(name);
                                 if (last_label == NULL) {
-                                    char m[256];
+                                    char m[33 + MAX_SIZE];
                                     
                                     sprintf(m, "Inconsistency, label '%s' not found", name);
                                     message(1, m);
@@ -1351,7 +1351,7 @@ void do_assembly()
                     }
                     if (assembler_step == 1) {
                         if (find_label(name)) {
-                            char m[256];
+                            char m[18 + MAX_SIZE];
                             
                             sprintf(m, "Redefined label '%s'", name);
                             message(1, m);
@@ -1361,7 +1361,7 @@ void do_assembly()
                     } else {
                         last_label = find_label(name);
                         if (last_label == NULL) {
-                            char m[256];
+                            char m[33 + MAX_SIZE];
                             
                             sprintf(m, "Inconsistency, label '%s' not found", name);
                             message(1, m);
