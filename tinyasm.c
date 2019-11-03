@@ -23,8 +23,10 @@ char *listing_filename;
 FILE *listing;
 
 int assembler_step;
-int default_start_address, start_address;
+int default_start_address;
+int start_address;
 int address;
+int first_time;
 
 int instruction_addressing;
 int instruction_offset;
@@ -1247,21 +1249,23 @@ void reset_address()
 {
     address = start_address = default_start_address;
 }
+
 /*
  ** Do an assembler step
  */
-void do_assembly(fname) char *fname;
+void do_assembly(fname)
+    char *fname;
 {
     FILE *input;
     char *p2;
     char *p3;
     char *pfname;
-    int first_time;
     int level;
     int avoid_level;
     int times;
-    int base = 0;
+    int base;
     int pline;
+    int include;
 
     input = fopen(fname, "r");
     if (input == NULL) {
@@ -1273,11 +1277,11 @@ void do_assembly(fname) char *fname;
     pfname = input_filename;
     pline = line_number;
     input_filename = fname;
-    first_time = 1;
     level = 0;
     avoid_level = -1;
     global_label[0] = '\0';
     line_number = 0;
+    base = 0;
     while (fgets(line, sizeof(line), input)) {
         line_number++;
         p = line;
@@ -1297,8 +1301,10 @@ void do_assembly(fname) char *fname;
         if (p > line && *(p - 1) == '\n')
             p--;
         *p = '\0';
-        
-        g = NULL;
+
+        base = address;
+        g = generated;
+        include = 0;
 
         while (1) {
             p = line;
@@ -1467,8 +1473,12 @@ void do_assembly(fname) char *fname;
             }
             if (strcmp(part, "%INCLUDE") == 0) {
                 separate();
-                do_assembly(part);
-                line[0] = 0;
+                check_end(p);
+                if (part[0] != '"' || part[strlen(part) - 1] != '"') {
+                    message(1, "Missing quotes on %include");
+                    break;
+                }
+                include = 1;
                 break;
             }
             if (strcmp(part, "ORG") == 0) {
@@ -1484,6 +1494,7 @@ void do_assembly(fname) char *fname;
                         first_time = 0;
                         address = instruction_value;
                         start_address = instruction_value;
+                        base = address;
                     } else {
                         if (instruction_value < address) {
                             message(1, "Backward address");
@@ -1545,6 +1556,10 @@ void do_assembly(fname) char *fname;
                 p++;
             }
             fprintf(listing, "  %05d %s\n", line_number, line);
+        }
+        if (include == 1) {
+            part[strlen(part) - 1] = '\0';
+            do_assembly(part + 1);
         }
     }
     fclose(input);
@@ -1670,6 +1685,7 @@ int main(argc, argv)
      ** Do first step of assembly
      */
     assembler_step = 1;
+    first_time = 1;
     do_assembly(ifname);
     if (!errors) {
         
@@ -1696,6 +1712,7 @@ int main(argc, argv)
                 exit(1);
             }
             assembler_step = 2;
+            first_time = 1;
             do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
