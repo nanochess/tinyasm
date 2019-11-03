@@ -65,6 +65,7 @@ are implemented the following directives:
 	%if
 	%else
 	%endif
+	%include
 	times 
 	use16
 	cpu 8086

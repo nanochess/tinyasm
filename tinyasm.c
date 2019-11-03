@@ -14,7 +14,6 @@
 #define DEBUG
 
 char *input_filename;
-FILE *input;
 int line_number;
 
 char *output_filename;
@@ -24,7 +23,7 @@ char *listing_filename;
 FILE *listing;
 
 int assembler_step;
-int start_address;
+int default_start_address, start_address;
 int address;
 
 int instruction_addressing;
@@ -1244,25 +1243,36 @@ void process_instruction()
     }
 }
 
+void reset_address()
+{
+    address = start_address = default_start_address;
+}
 /*
  ** Do an assembler step
  */
-void do_assembly()
+void do_assembly(fname) char *fname;
 {
+    FILE *input;
     char *p2;
     char *p3;
+    char *pfname;
     int first_time;
     int level;
     int avoid_level;
     int times;
     int base = 0;
-    
-    input = fopen(input_filename, "r");
+    int pline;
+
+    input = fopen(fname, "r");
     if (input == NULL) {
-        fprintf(stderr, "Error: cannot open '%s' for input\n", input_filename);
+        fprintf(stderr, "Error: cannot open '%s' for input\n", fname);
         errors++;
         return;
     }
+
+    pfname = input_filename;
+    pline = line_number;
+    input_filename = fname;
     first_time = 1;
     level = 0;
     avoid_level = -1;
@@ -1346,8 +1356,7 @@ void do_assembly()
                         /*                        fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
 #endif
                         first_time = 0;
-                        address = 0x0100;
-                        start_address = 0x0100;
+                        reset_address();
                     }
                     if (assembler_step == 1) {
                         if (find_label(name)) {
@@ -1456,6 +1465,12 @@ void do_assembly()
                     message(1, "Unsupported processor requested");
                 break;
             }
+            if (strcmp(part, "%INCLUDE") == 0) {
+                separate();
+                do_assembly(part);
+                line[0] = 0;
+                break;
+            }
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
@@ -1487,8 +1502,7 @@ void do_assembly()
                 /*fprintf(stderr, "First time '%s' at line %d\n", line, line_number);*/
 #endif
                 first_time = 0;
-                address = 0x0100;
-                start_address = 0x0100;
+                reset_address();
             }
             times = 1;
             if (strcmp(part, "TIMES") == 0) {
@@ -1534,6 +1548,8 @@ void do_assembly()
         }
     }
     fclose(input);
+    line_number = pline;
+    input_filename = pfname;
 }
 
 /*
@@ -1546,6 +1562,7 @@ int main(argc, argv)
     int c;
     int d;
     char *p;
+    char *ifname;
     
     /*
      ** If ran without arguments then show usage
@@ -1559,9 +1576,10 @@ int main(argc, argv)
     /*
      ** Start to collect arguments
      */
-    input_filename = NULL;
+    ifname = NULL;
     output_filename = NULL;
     listing_filename = NULL;
+    default_start_address = 0;
     c = 1;
     while (c < argc) {
         if (argv[c][0] == '-') {    /* All arguments start with dash */
@@ -1573,8 +1591,12 @@ int main(argc, argv)
                     exit(1);
                 } else {
                     to_lowercase(argv[c]);
-                    if (strcmp(argv[c], "bin") != 0) {
-                        fprintf(stderr, "Error: only 'bin' supported for -f (it is '%s')\n", argv[c]);
+                    if (strcmp(argv[c], "bin") == 0) {
+                        default_start_address = 0;
+                    } else if (strcmp(argv[c], "com") == 0) {
+                        default_start_address = 0x0100;
+                    } else {
+                        fprintf(stderr, "Error: only 'bin', 'com' supported for -f (it is '%s')\n", argv[c]);
                         exit(1);
                     }
                     c++;
@@ -1629,17 +1651,17 @@ int main(argc, argv)
                 exit(1);
             }
         } else {
-            if (input_filename != NULL) {
+            if (ifname != NULL) {
                 fprintf(stderr, "Error: more than one input file name: %s\n", argv[c]);
                 exit(1);
             } else {
-                input_filename = argv[c];
+                ifname = argv[c];
             }
             c++;
         }
     }
     
-    if (input_filename == NULL) {
+    if (ifname == NULL) {
         fprintf(stderr, "No input filename provided\n");
         exit(1);
     }
@@ -1648,7 +1670,7 @@ int main(argc, argv)
      ** Do first step of assembly
      */
     assembler_step = 1;
-    do_assembly();
+    do_assembly(ifname);
     if (!errors) {
         
         /*
@@ -1674,7 +1696,7 @@ int main(argc, argv)
                 exit(1);
             }
             assembler_step = 2;
-            do_assembly();
+            do_assembly(ifname);
             
             if (listing != NULL && change == 0) {
                 fprintf(listing, "\n%05d ERRORS FOUND\n", errors);
