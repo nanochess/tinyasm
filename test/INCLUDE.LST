@@ -1,0 +1,35 @@
+                        00001         ;
+                        00002         ; HELLOWORLD WITH %INCLUDE TEST PROGRAMM
+                        00003         ;
+                        00004         ; BY DOSWORLD
+                        00005         ; HTTPS://GITHUB.COM/DOSWORLD/
+                        00006         ;
+                        00007         ; (C) COPYRIGHT 2019 DOSWORLD
+                        00008         ;
+                        00009         ; CREATION DATE: NOV/03/2019. 5AM.
+                        00010         ;
+                        00011 
+0100                    00012 	ORG 0X0100
+0100                    00013         %INCLUDE "test\INCLUDE1.INC"
+
+0100                    00001         %INCLUDE "test\INCLUDE2.INC"
+
+0100  B409              00001 	MOV	AH,9
+0102  BA0901            00002 	MOV	DX,MSG
+0105  CD21              00003 	INT	0X21
+0107  EB0E              00004 	JMP	SHORT OVERMSG
+0109  48656C6C6F2C2077  00005 MSG:	DB	"Hello, world!$"
+0117                    00006 OVERMSG:
+0117                    00002         %INCLUDE "test\INCLUDE3.INC"
+
+0117  C3                00001 	RET
+
+00000 ERRORS FOUND
+00000 WARNINGS FOUND
+
+00024 PROGRAM BYTES
+
+LABEL                VALUE/ADDRESS
+
+MSG                  0109
+OVERMSG              0117

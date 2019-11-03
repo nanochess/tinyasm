@@ -10,4 +10,4 @@
         ;
 
 	org 0x0100
-	%include test\include1.inc
+        %include "test\include1.inc"
