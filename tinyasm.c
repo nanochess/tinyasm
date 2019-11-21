@@ -966,6 +966,8 @@ char *match(p, pattern, decode)
         if (toupper(*p) != *pattern)
             return NULL;
         p++;
+        if (*pattern == ',')    /* Allow spaces after comma */
+            p = avoid_spaces(p);
         pattern++;
     }
 
@@ -1294,6 +1296,10 @@ void do_assembly(fname)
                 p++;
                 while (*p && *p != '"' && *(p - 1) != '\\')
                     p++;
+            } else if (*p == ';') {
+                while (*p)
+                    p++;
+                break;
             }
             *p = toupper(*p);
             p++;
