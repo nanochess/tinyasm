@@ -10,3 +10,4 @@ tinyasm -f bin test\os.asm -o test\os.img -l test\os.lst
 tinyasm -f bin test\basic.asm -o test\basic.img -l test\basic.lst
 tinyasm -f bin test\include.asm -o test\include.com -l test\include.lst
 tinyasm -f bin test\bricks.asm -o test\bricks.img -l test\bricks.lst
+tinyasm -f bin test\doom.asm -o test\doom.img -l test\doom.lst
