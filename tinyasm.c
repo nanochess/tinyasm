@@ -1177,12 +1177,12 @@ void process_instruction()
                 if (*p) {
                     p++;
                 } else {
-                    fprintf(stderr, "Error: unterminated string\n");
+                    fprintf(stderr, "Error: unterminated string at line %d\n", line_number);
                 }
             } else {
                 p2 = match_expression(p, &instruction_value);
                 if (p2 == NULL) {
-                    fprintf(stderr, "Error: bad expression\n");
+                    fprintf(stderr, "Error: bad expression at line %d\n", line_number);
                     break;
                 }
                 emit_byte(instruction_value);
@@ -1202,7 +1202,7 @@ void process_instruction()
         while (1) {
             p2 = match_expression(p, &instruction_value);
             if (p2 == NULL) {
-                fprintf(stderr, "Error: bad expression\n");
+                fprintf(stderr, "Error: bad expression at line %d\n", line_number);
                 break;
             }
             emit_byte(instruction_value);
