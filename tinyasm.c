@@ -1252,6 +1252,31 @@ void reset_address()
     address = start_address = default_start_address;
 }
 
+void incbin(fname)
+    char *fname;
+{
+    FILE *input;
+    char buf[30];
+    int size;
+    int i;
+    
+    input = fopen(fname, "r");
+    if (input == NULL) {
+        fprintf(stderr, "Error: cannot open '%s' for input\n", fname);
+        errors++;
+        return;
+    }
+    
+    while(size = fread(buf, 1, 30, input)) {
+        for(i = 0;i < size; i++)
+        {
+            emit_byte(buf[i]);
+        }
+    }
+    
+    fclose(input);
+}
+
 /*
  ** Do an assembler step
  */
@@ -1487,6 +1512,16 @@ void do_assembly(fname)
                 include = 1;
                 break;
             }
+            if (strcmp(part, "INCBIN") == 0) {
+                separate();
+                check_end(p);
+                if (part[0] != '"' || part[strlen(part) - 1] != '"') {
+                    message(1, "Missing quotes on incbin");
+                    break;
+                }
+                include = 2;
+                break;
+            }
             if (strcmp(part, "ORG") == 0) {
                 p = avoid_spaces(p);
                 undefined = 0;
@@ -1566,6 +1601,10 @@ void do_assembly(fname)
         if (include == 1) {
             part[strlen(part) - 1] = '\0';
             do_assembly(part + 1);
+        }
+        if (include == 2) {
+            part[strlen(part) - 1] = '\0';
+            incbin(part + 1);
         }
     }
     fclose(input);
