@@ -43,6 +43,9 @@ Thanks to tkchia for making it portable to ia16-elf-gcc,
 removing DeSmet C warnings, and making it to return
 error codes.
 
+Thanks to humbertocsjr for contributing the INCBIN
+command.
+
 
 >> DIFFERENCES BETWEEN TINYASM AND NASM >>
 
@@ -66,6 +69,7 @@ are implemented the following directives:
 	%else
 	%endif
 	%include
+	incline
 	times 
 	use16
 	cpu 8086
