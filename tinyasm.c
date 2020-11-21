@@ -1569,7 +1569,7 @@ void do_assembly(fname)
                     align = align * instruction_value;
                     align = align + instruction_value;
 		    while (address < align)
-		        emit_byte(0);
+		        emit_byte(0x90);
                     check_end(p2);
                 }
                 break;
