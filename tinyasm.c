@@ -1299,6 +1299,7 @@ void do_assembly(fname)
     int base;
     int pline;
     int include;
+    int align;
 
     input = fopen(fname, "r");
     if (input == NULL) {
@@ -1551,6 +1552,24 @@ void do_assembly(fname)
                             
                         }
                     }
+                    check_end(p2);
+                }
+                break;
+            }
+            if (strcmp(part, "ALIGN") == 0) {
+                p = avoid_spaces(p);
+                undefined = 0;
+                p2 = match_expression(p, &instruction_value);
+                if (p2 == NULL) {
+                    message(1, "Bad expression");
+                } else if (undefined) {
+                    message(1, "Cannot use undefined labels");
+                } else {
+                    align = address / instruction_value;
+                    align = align * instruction_value;
+                    align = align + instruction_value;
+		    while (address < align)
+		        emit_byte(0);
                     check_end(p2);
                 }
                 break;
