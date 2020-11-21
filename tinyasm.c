@@ -1247,29 +1247,35 @@ void process_instruction()
     }
 }
 
+/*
+ ** Reset current address.
+ ** Called anytime the assembler needs to generate code.
+ */
 void reset_address()
 {
     address = start_address = default_start_address;
 }
 
+/*
+ ** Include a binary file
+ */
 void incbin(fname)
     char *fname;
 {
     FILE *input;
-    char buf[30];
+    char buf[256];
     int size;
     int i;
     
     input = fopen(fname, "r");
     if (input == NULL) {
-        fprintf(stderr, "Error: cannot open '%s' for input\n", fname);
-        errors++;
+        sprintf(buf, "Error: Cannot open '%s' for input", fname);
+        message(1, buf);
         return;
     }
     
-    while(size = fread(buf, 1, 30, input)) {
-        for(i = 0;i < size; i++)
-        {
+    while (size = fread(buf, 1, 30, input)) {
+        for (i = 0; i < size; i++) {
             emit_byte(buf[i]);
         }
     }
