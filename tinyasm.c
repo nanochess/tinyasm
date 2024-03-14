@@ -1267,14 +1267,14 @@ void incbin(fname)
     int size;
     int i;
     
-    input = fopen(fname, "r");
+    input = fopen(fname, "rb");
     if (input == NULL) {
         sprintf(buf, "Error: Cannot open '%s' for input", fname);
         message(1, buf);
         return;
     }
     
-    while (size = fread(buf, 1, 30, input)) {
+    while (size = fread(buf, 1, sizeof(buf), input)) {
         for (i = 0; i < size; i++) {
             emit_byte(buf[i]);
         }
