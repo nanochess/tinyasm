@@ -420,6 +420,8 @@ char *read_character(p, c)
             }
         } else {
             p--;
+            *c = *p;
+            p++;
             message(1, "bad escape inside string");
         }
     } else {
